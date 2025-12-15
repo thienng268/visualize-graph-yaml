@@ -1,0 +1,21 @@
+- id: send_otp
+  action:
+    id: "send_otp_action"
+    description: "Send OTP via API /otp/send and store otp_txn_id"
+    utter: "Mã xác thực OTP đã được gửi đến số điện thoại ****{customer_phone_last_4}."
+    next:
+      - if: slots.otp_sent_status == "FAILED"
+        then: otp_send_failed
+      - else: ask_otp_code
+
+- id: otp_send_failed
+  action:
+    id: "otp_failed_action"
+    description: "Handle failed OTP"
+    utter: "Có lỗi xảy ra khi gửi OTP."
+    
+- id: ask_otp_code
+  action:
+    id: "ask_otp"
+    description: "Ask user for code"
+    utter: "Vui lòng nhập mã OTP."
