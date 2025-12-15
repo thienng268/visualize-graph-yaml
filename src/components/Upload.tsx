@@ -2,29 +2,35 @@ import React, { type ChangeEvent } from 'react';
 import yaml from 'js-yaml';
 import styled from 'styled-components';
 
-const Container = styled.div`
-  margin-bottom: 20px;
-  padding: 20px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  text-align: center;
+const UploadButton = styled.label`
+    background-color: #1890ff; /* Blue to match Download or distinct? User said 'similar to two buttons'. Download is blue, Add is Green. Let's make this default Blue or maybe orange? Let's stick to Blue like the old one but styled like ControlButton */
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    box-sizing: border-box; /* Ensure padding is included in width */
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    width: 160px; /* Fixed width for uniformity */
+    text-align: center;
+    display: inline-block; /* label needs this to behave like button */
+    
+    &:hover {
+        background-color: #40a9ff;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    }
+
+    &:active {
+        transform: translateY(0);
+    }
 `;
 
 const FileInput = styled.input`
   display: none;
-`;
-
-const UploadButton = styled.label`
-  background-color: #007bff;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: bold;
-  
-  &:hover {
-    background-color: #0056b3;
-  }
 `;
 
 interface UploadProps {
@@ -39,8 +45,6 @@ export const Upload: React.FC<UploadProps> = ({ onLoad }) => {
             reader.onload = (event) => {
                 try {
                     const content = event.target?.result as string;
-                    // Clean up the input string if needed or parse directly
-                    // The user provided example implies a list of nodes
                     const parsed = yaml.load(content);
                     onLoad(parsed);
                 } catch (error) {
@@ -53,12 +57,9 @@ export const Upload: React.FC<UploadProps> = ({ onLoad }) => {
     };
 
     return (
-        <Container>
-            <h3>Upload Workflow YAML</h3>
-            <UploadButton>
-                Select File
-                <FileInput type="file" accept=".yaml,.yml" onChange={handleFileChange} />
-            </UploadButton>
-        </Container>
+        <UploadButton>
+            Upload YAML
+            <FileInput type="file" accept=".yaml,.yml" onChange={handleFileChange} />
+        </UploadButton>
     );
 };

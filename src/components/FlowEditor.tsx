@@ -29,39 +29,74 @@ const nodeTypes = {
 };
 
 const EditorContainer = styled.div`
-  height: 80vh;
-  width: 100%;
-  border: 1px solid #ddd;
-  position: relative;
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: #fdfdfd;
+  overflow: hidden; 
 `;
 
 const Layout = styled.div`
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+`;
+
+const FloatingControls = styled.div`
+  position: absolute;
+  top: 20px;
+  right: 20px;
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  height: 100vh;
-  box-sizing: border-box;
+  gap: 10px;
+  z-index: 5;
+  align-items: flex-end;
+  pointer-events: none;
+  
+  & > * {
+    pointer-events: auto;
+  }
+
+  h1 {
+    font-size: 18px;
+    color: #333;
+    margin: 0 0 5px 0;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 6px 12px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    backdrop-filter: blur(4px);
+  }
 `;
 
-const Header = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-`;
-
-const AddButton = styled.button`
+const ControlButton = styled.button`
     background-color: #52c41a;
     color: white;
     border: none;
-    padding: 10px 20px;
+    padding: 6px 12px;
     border-radius: 4px;
     cursor: pointer;
-    font-weight: bold;
-    margin-left: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    box-sizing: border-box; /* Ensure padding is included in width */
+    transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    width: 160px; /* Fixed width for uniformity */
+    text-align: center;
     
     &:hover {
         background-color: #73d13d;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+    }
+
+    &:active {
+        transform: translateY(0);
     }
 `;
 
@@ -202,15 +237,6 @@ export const FlowEditor: React.FC = () => {
 
     return (
         <Layout>
-            <Header>
-                <h1>Workflow Visualizer</h1>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <Upload onLoad={handleYamlLoad} />
-                    <AddButton onClick={onAddNode}>+ Add Node</AddButton>
-                    <AddButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download YAML</AddButton>
-                </div>
-            </Header>
-
             <EditorContainer>
                 <ReactFlow
                     nodes={nodes}
@@ -241,6 +267,15 @@ export const FlowEditor: React.FC = () => {
                     onClose={() => setSelectedItem(null)}
                 />
             </EditorContainer>
+
+            <FloatingControls>
+                <h1>Workflow Visualizer</h1>
+                <div style={{ pointerEvents: 'auto' }}>
+                    <Upload onLoad={handleYamlLoad} />
+                </div>
+                <ControlButton onClick={onAddNode}>+ Add Node</ControlButton>
+                <ControlButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download YAML</ControlButton>
+            </FloatingControls>
         </Layout>
     );
 };

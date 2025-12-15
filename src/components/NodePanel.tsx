@@ -2,17 +2,20 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 
 const SidePanel = styled.div`
-  position: absolute;
+  position: fixed;
   right: 0;
   top: 0;
   bottom: 0;
-  width: 300px;
+  height: 100vh;
+  width: 500px;
   background: white;
-  border-left: 1px solid #ddd;
-  padding: 20px;
-  box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+  border-left: 1px solid #e8e8e8;
+  padding: 24px;
+  box-shadow: -4px 0 8px rgba(0,0,0,0.05);
   overflow-y: auto;
-  z-index: 10;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
 `;
 
 const FormGroup = styled.div`
