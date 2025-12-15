@@ -19,6 +19,7 @@ import yaml from 'js-yaml';
 
 import { Upload } from './Upload';
 import { PropertiesPanel } from './NodePanel';
+import { FilterPanel } from './FilterPanel';
 import { transformYamlToFlow } from '../utils/transform';
 import { getLayoutedElements } from '../utils/layout';
 import { transformFlowToYaml } from '../utils/reverseTransform';
@@ -108,6 +109,64 @@ export const FlowEditor: React.FC = () => {
 
     const [rfInstance, setRfInstance] = useState<any>(null);
     const edgeReconnectSuccessful = useRef(false);
+
+    // Filter State
+    const [filters, setFilters] = useState({
+        rejections: false,
+        sets_slot: false,
+        clear_slots: false // Plural as requested
+    });
+
+    // Filter Logic Effect
+    React.useEffect(() => {
+        setNodes((nds) => nds.map((node) => {
+            const data = node.data;
+            let style = {};
+
+            // 1. Base 'end' style (Standard Red Background)
+            if (data.end === true) {
+                style = {
+                    ...style,
+                    backgroundColor: '#ffccc7', // Light red background
+                    borderColor: '#ff4d4f'
+                };
+            }
+
+            // 2. Filter Highlighting (Yellow Border/Glow)
+            let isHighlighted = false;
+
+            // Check Rejections
+            if (filters.rejections && data.rejections && Array.isArray(data.rejections) && data.rejections.length > 0) {
+                isHighlighted = true;
+            }
+
+            // Check sets_slot (Found in action details usually, or root data if simplified)
+            // Checking both potential locations
+            if (filters.sets_slot) {
+                if (data.sets_slot || data.set_slot || (data.action?.sets_slot) || (data.action?.set_slot)) isHighlighted = true;
+            }
+
+            // Check clear_slots (plural as requested)
+            if (filters.clear_slots) {
+                if (data.clear_slots || data.clear_slot || (data.action?.clear_slots) || (data.action?.clear_slot)) isHighlighted = true;
+            }
+
+            if (isHighlighted) {
+                style = {
+                    ...style,
+                    borderWidth: '3px',
+                    borderColor: '#faad14', // Yellow/Orange highlight
+                    boxShadow: '0 0 10px rgba(250, 173, 20, 0.6)'
+                };
+            }
+
+            return { ...node, style };
+        }));
+    }, [filters, nodes.length]);
+
+    const handleFilterChange = (key: 'rejections' | 'sets_slot' | 'clear_slots') => {
+        setFilters(prev => ({ ...prev, [key]: !prev[key] }));
+    };
 
     const onConnect: OnConnect = useCallback(
         (params) => setEdges((eds) => addEdge({ ...params, type: 'default', markerEnd: { type: MarkerType.ArrowClosed, color: '#000' }, style: { stroke: '#333', strokeWidth: 2 } }, eds)),
@@ -258,6 +317,8 @@ export const FlowEditor: React.FC = () => {
                     <MiniMap />
                     <Background gap={12} size={1} />
                 </ReactFlow>
+
+                <FilterPanel filters={filters} onFilterChange={handleFilterChange} />
 
                 <PropertiesPanel
                     selectedItem={selectedItem}

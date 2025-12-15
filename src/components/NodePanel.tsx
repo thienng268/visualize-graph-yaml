@@ -196,6 +196,14 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                     </FormGroup>
 
                     <FormGroup>
+                        <Label>Clear Slots</Label>
+                        <Input
+                            value={formData.action?.clear_slots || ''}
+                            onChange={(e) => handleActionChange('clear_slots', e.target.value)}
+                        />
+                    </FormGroup>
+
+                    <FormGroup>
                         <Label>Action Utterance</Label>
                         <TextArea
                             value={formData.action?.utter || ''}
