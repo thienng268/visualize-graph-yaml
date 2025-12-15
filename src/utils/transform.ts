@@ -117,7 +117,7 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[] }
         const sourceId = item.id;
         if (!sourceId) return;
 
-        const addEdge = (target: string, label?: string, style?: any) => {
+        const addEdge = (target: string, label?: string, style?: any, data?: any) => {
             const cleanTarget = cleanStr(target);
             // Check against available IDs
             if (availableIds.has(cleanTarget)) {
@@ -129,6 +129,7 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[] }
                     type: 'default',
                     markerEnd: { type: MarkerType.ArrowClosed, color: style?.stroke || '#000' },
                     style: style || { stroke: '#333', strokeWidth: 2 },
+                    data: data // Pass custom data to edge
                 });
             } else {
                 console.warn(`Edge dropped: Source ${sourceId} -> Target ${cleanTarget} (Target not found)`);
@@ -151,11 +152,16 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[] }
                     const thenTarget = rule.then || rule.Then;
                     const elseTarget = rule.else || rule.Else;
 
+                    // Extract clear_slots if present
+                    const clearSlotsData = {
+                        clear_slots: rule.clear_slots || rule.clear_slot
+                    };
+
                     if (thenTarget) {
                         const condition = ifCond ? `if ${ifCond}` : 'else';
-                        addEdge(thenTarget, condition);
+                        addEdge(thenTarget, condition, undefined, clearSlotsData);
                     } else if (elseTarget) {
-                        addEdge(elseTarget, 'else');
+                        addEdge(elseTarget, 'else', undefined, clearSlotsData);
                     } else if (typeof rule === 'string') {
                         addEdge(rule);
                     }

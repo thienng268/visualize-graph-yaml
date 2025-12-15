@@ -92,7 +92,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                     source: selectedItem.source,
                     target: selectedItem.target,
                     style: selectedItem.style,
-                    markerEnd: selectedItem.markerEnd
+                    markerEnd: selectedItem.markerEnd,
+                    data: selectedItem.data || {} // Include data for edges
                 });
             }
         }
@@ -105,8 +106,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
         setFormData(updated);
 
         // Propagate update
-        // For edge, we pass the structural properties directly back
-        // For node, we pass the 'data' object back
         if (itemType === 'node') {
             // ... existing node logic ...
             if (field.startsWith('action.')) {
@@ -114,8 +113,28 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             }
             onUpdate(selectedItem.id, updated, 'node');
         } else {
-            // For edges, we update the edge object structure
-            onUpdate(selectedItem.id, { ...updated }, 'edge');
+            // For edges, we need to separate structural props vs data props
+            // ID, source, target are immutable here usually. Label is top level.
+            // clear_slots is in 'data'.
+
+            // If field is 'clear_slots', update nested data
+            if (field === 'clear_slots') {
+                const newData = { ...formData.data, clear_slots: value };
+                // We update local form data with NEW nested data structure? 
+                // Or we keep flat structure in formData and map back?
+                // Current formData init puts 'data' as a nested object.
+                // So let's update that nested object.
+                const updatedForm = { ...formData, data: newData };
+                setFormData(updatedForm); // Update UI state
+
+                // Pass full object update. 
+                // But FlowEditor expects specific structure update? 
+                // Let's look at FlowEditor updateData.
+                onUpdate(selectedItem.id, { label: updatedForm.label, data: newData }, 'edge');
+            } else {
+                // Root property update (label)
+                onUpdate(selectedItem.id, { label: value, data: formData.data }, 'edge');
+            }
         }
     };
 
@@ -254,6 +273,14 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                         <Input
                             value={formData.label || ''}
                             onChange={(e) => handleChange('label', e.target.value)}
+                        />
+                    </FormGroup>
+                    <FormGroup>
+                        <Label>Clear Slots</Label>
+                        <Input
+                            value={formData.data?.clear_slots || ''}
+                            onChange={(e) => handleChange('clear_slots', e.target.value)}
+                            placeholder="e.g. [slot1, slot2]"
                         />
                     </FormGroup>
                 </>

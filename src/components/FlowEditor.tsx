@@ -148,7 +148,19 @@ export const FlowEditor: React.FC = () => {
 
             // Check clear_slots (plural as requested)
             if (filters.clear_slots) {
-                if (data.clear_slots || data.clear_slot || (data.action?.clear_slots) || (data.action?.clear_slot)) isHighlighted = true;
+                let hasClearSlots = false;
+                // 1. Direct property
+                if (data.clear_slots || data.clear_slot || (data.action?.clear_slots) || (data.action?.clear_slot)) {
+                    hasClearSlots = true;
+                }
+                // 2. Nested in 'next' rules
+                if (!hasClearSlots && data.next && Array.isArray(data.next)) {
+                    hasClearSlots = data.next.some((rule: any) =>
+                        rule.clear_slots || rule.clear_slot
+                    );
+                }
+
+                if (hasClearSlots) isHighlighted = true;
             }
 
             if (isHighlighted) {
@@ -162,7 +174,88 @@ export const FlowEditor: React.FC = () => {
 
             return { ...node, style };
         }));
-    }, [filters, nodes.length]);
+
+        setEdges((eds) => eds.map((edge) => {
+            let style = edge.style ? { ...edge.style } : { stroke: '#333', strokeWidth: 2 };
+            let markerEnd = edge.markerEnd;
+
+            // Reset to default if not highlighted
+            // Default styling is usually { stroke: '#333', strokeWidth: 2 } defined in transform
+            // But we need to be careful not to override rejection red edges
+            // We can check if it was previously highlighted and reset, or just rebuild base style
+            // Simpler: Set base style first. 
+            // Rejection edges are red. Normal are #333.
+            // We can infer base color from the edge type or label? 
+            // transform.ts sets markerEnd color.
+
+            // NOTE: To safely toggle highlight without losing base style (like rejection red),
+            // we should ideally store base style. But for now, let's assume standard behavior.
+
+            let isHighlighted = false;
+
+            if (filters.clear_slots) {
+                // Check edge data for clear_slots (passed from transform)
+                // edge.data is generic, check existence
+                if (edge.data && (edge.data.clear_slots || edge.data.clear_slot)) {
+                    isHighlighted = true;
+                }
+            }
+
+            if (isHighlighted) {
+                style = {
+                    ...style,
+                    stroke: '#faad14',
+                    strokeWidth: 3
+                };
+                markerEnd = {
+                    type: MarkerType.ArrowClosed,
+                    color: '#faad14'
+                };
+                // Force animation for highlighted edges? User didn't ask, but good for visibility. 
+                // User said "lights up". Color is sufficient.
+            } else {
+                // Revert to original. 
+                // If it was red (rejection), it should stay red?
+                // transform.ts sets stroke in style.
+                // This part is tricky if we don't know the original color.
+                // However, we are re-mapping based on current state.
+                // If we modify 'style' in place, we lose original.
+                // Correct way: The 'edges' state holds the source of truth. 
+                // But we are modifying it here! 
+                // Actually, transform.ts creates the initial edges.
+                // We should probably re-run formatting on the *original* edges, but we only have current edges.
+
+                // Fix: Access the *original* color if possible. 
+                // Or, if we see it is NOT highlighted, we set it back to default or red?
+
+                // Let's assume default for now. Rejection edges have specific logic?
+                // Rejection edges in transform.ts are just edges with empty label? 
+                // No, they are regular edges now. 
+                // User said "Rejection: if condition" previously, then hidden.
+                // Let's rely on standard style reset to #333 or red if we can detect it.
+                // Actually, simple way: properties panel might save data to edge using updateData.
+
+                // To avoid complexity: simple check. If currently yellow (#faad14), reset to #333.
+                // But wait, rejections might be red?
+                // transform logic for rejection: addEdge(nextTarget, '', undefined, ...) -> undefined style -> default #333.
+                // Wait, rejection edges were red before? User reverted them to normal.
+                // "Modified (Latest): Reverted the color to the default black/grey"
+                // So all edges are #333 by default! Great.
+
+                if (style.stroke === '#faad14') {
+                    style.stroke = '#333';
+                    style.strokeWidth = 2;
+                    if (typeof markerEnd === 'object') markerEnd.color = '#000'; // Default arrow color
+                }
+            }
+
+            return { ...edge, style, markerEnd };
+        }));
+
+    }, [filters, nodes.length]); // Edges length should also be dependency?
+    // Added edges.length dependency or just filters?
+    // If we load new YAML, setEdges is called, overwriting state. 
+    // Effect runs because nodes.length likely changes. Good.
 
     const handleFilterChange = (key: 'rejections' | 'sets_slot' | 'clear_slots') => {
         setFilters(prev => ({ ...prev, [key]: !prev[key] }));
@@ -284,13 +377,14 @@ export const FlowEditor: React.FC = () => {
                     if (edge.id === id) {
                         return {
                             ...edge,
-                            label: newData.label
+                            label: newData.label,
+                            data: newData.data // Update data (including clear_slots)
                         };
                     }
                     return edge;
                 })
             );
-            setSelectedItem((prev: any) => prev ? { ...prev, label: newData.label } : null);
+            setSelectedItem((prev: any) => prev ? { ...prev, label: newData.label, data: newData.data } : null);
         }
     };
 
@@ -312,6 +406,7 @@ export const FlowEditor: React.FC = () => {
                     onPaneClick={onPaneClick}
                     onInit={setRfInstance}
                     fitView
+                    minZoom={0.1}
                 >
                     <Controls />
                     <MiniMap />
