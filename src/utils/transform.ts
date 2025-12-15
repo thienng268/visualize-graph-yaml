@@ -11,7 +11,7 @@ export interface YamlNodeData {
     // Add other potential fields
 }
 
-export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[] } => {
+export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; metadata: any } => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     let yPos = 0;
@@ -182,5 +182,29 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[] }
         }
     });
 
-    return { nodes, edges };
+    // Extract Metadata (Name, Description, Root Key)
+    const metadata = {
+        name: '',
+        description: '',
+        rootKey: 'flow' // Default
+    };
+
+    if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
+        // Check for root key wrapping steps
+        // Case 1: Root key is not 'steps' but contains 'steps'
+        const keys = Object.keys(data);
+        for (const key of keys) {
+            if (key !== 'steps' && data[key] && Array.isArray(data[key].steps)) {
+                metadata.rootKey = key;
+                metadata.name = data[key].name || '';
+                metadata.description = data[key].description || '';
+                break;
+            }
+            // Case 2: data has name/description at root (flat)
+            if (key === 'name' && typeof data[key] === 'string') metadata.name = data[key];
+            if (key === 'description' && typeof data[key] === 'string') metadata.description = data[key];
+        }
+    }
+
+    return { nodes, edges, metadata };
 };

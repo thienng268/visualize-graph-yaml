@@ -282,10 +282,25 @@ export const FlowEditor: React.FC = () => {
         edgeReconnectSuccessful.current = true;
     }, [setEdges]);
 
+    // Flow Metadata State
+    const [flowMetadata, setFlowMetadata] = useState({
+        name: '',
+        description: '',
+        rootKey: 'flow'
+    });
+
+    // Flow Metadata UI State
+    const [isFlowInfoOpen, setIsFlowInfoOpen] = useState(false);
+
+    const onPaneClick = useCallback(() => {
+        setSelectedItem(null);
+        setIsFlowInfoOpen(false); // Close panel on background click
+    }, []);
+
     const handleYamlLoad = (data: any) => {
         console.log('YAML Loaded:', data);
         if (data) {
-            const { nodes: flowNodes, edges: flowEdges } = transformYamlToFlow(data);
+            const { nodes: flowNodes, edges: flowEdges, metadata } = transformYamlToFlow(data);
 
             // Apply Layout
             const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
@@ -295,6 +310,9 @@ export const FlowEditor: React.FC = () => {
 
             console.log('Transformed Nodes:', layoutedNodes);
             console.log('Transformed Edges:', layoutedEdges);
+            console.log('Extracted Metadata:', metadata);
+
+            setFlowMetadata(metadata || { name: '', description: '', rootKey: 'flow' });
             setNodes(layoutedNodes);
             setEdges(layoutedEdges);
 
@@ -316,10 +334,7 @@ export const FlowEditor: React.FC = () => {
         setItemType('edge');
     };
 
-    const onPaneClick = () => {
-        setSelectedItem(null);
-        setItemType(null);
-    };
+
 
     const onDeleteItem = () => {
         if (!selectedItem) return;
@@ -345,17 +360,42 @@ export const FlowEditor: React.FC = () => {
     };
 
     const onExport = () => {
-        const yamlObj = transformFlowToYaml(nodes, edges);
-        const yamlStr = yaml.dump(yamlObj);
+        const flowData = transformFlowToYaml(nodes, edges);
 
-        const blob = new Blob([yamlStr], { type: 'text/yaml' });
+        let validFlowData: any = flowData;
+
+        // If we have metadata with a rootKey (e.g., flow_khoa_the), wrap the steps
+        if (flowMetadata.rootKey && flowMetadata.rootKey !== 'flow') {
+            validFlowData = {
+                [flowMetadata.rootKey]: {
+                    name: flowMetadata.name,
+                    description: flowMetadata.description,
+                    steps: flowData
+                }
+            };
+        } else if (flowMetadata.name || flowMetadata.description) {
+            // If no specific root key but has metadata, wrap in generic 'flow' or mixed? 
+            // Revert to simple steps if generic?
+            // User sample implies wrapping is important.
+            // Let's wrap in 'flow' if rootKey is default but fields exist
+            validFlowData = {
+                [flowMetadata.rootKey || 'flow']: {
+                    name: flowMetadata.name,
+                    description: flowMetadata.description,
+                    steps: flowData
+                }
+            };
+        }
+
+        const yamlString = yaml.dump(validFlowData);
+        const blob = new Blob([yamlString], { type: 'text/yaml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = 'workflow.yaml';
-        document.body.appendChild(a);
+        document.body.appendChild(a); // Append to body
         a.click();
-        document.body.removeChild(a);
+        document.body.removeChild(a); // Remove after click
         URL.revokeObjectURL(url);
     };
 
@@ -420,7 +460,13 @@ export const FlowEditor: React.FC = () => {
                     itemType={itemType}
                     onUpdate={updateData}
                     onDelete={onDeleteItem}
-                    onClose={() => setSelectedItem(null)}
+                    onClose={() => {
+                        setSelectedItem(null);
+                        setIsFlowInfoOpen(false);
+                    }}
+                    flowMetadata={flowMetadata}
+                    onMetadataUpdate={(newMeta) => setFlowMetadata(prev => ({ ...prev, ...newMeta }))}
+                    isFlowInfoOpen={isFlowInfoOpen}
                 />
             </EditorContainer>
 
@@ -429,6 +475,7 @@ export const FlowEditor: React.FC = () => {
                 <div style={{ pointerEvents: 'auto' }}>
                     <Upload onLoad={handleYamlLoad} />
                 </div>
+                <ControlButton onClick={() => setIsFlowInfoOpen(true)}>Edit Flow Info</ControlButton>
                 <ControlButton onClick={onAddNode}>+ Add Node</ControlButton>
                 <ControlButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download YAML</ControlButton>
             </FloatingControls>

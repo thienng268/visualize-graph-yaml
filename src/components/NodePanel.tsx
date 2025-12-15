@@ -61,6 +61,13 @@ interface PropertiesPanelProps {
     onUpdate: (id: string, newData: any, type: 'node' | 'edge') => void;
     onDelete: () => void;
     onClose: () => void;
+    flowMetadata?: {
+        name: string;
+        description: string;
+        rootKey: string;
+    };
+    onMetadataUpdate?: (meta: { name?: string; description?: string; rootKey?: string }) => void;
+    isFlowInfoOpen?: boolean;
 }
 
 const DeleteButton = styled.button`
@@ -77,12 +84,11 @@ const DeleteButton = styled.button`
     }
 `;
 
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, itemType, onUpdate, onDelete, onClose }) => {
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, itemType, onUpdate, onDelete, onClose, flowMetadata, onMetadataUpdate, isFlowInfoOpen }) => {
     const [formData, setFormData] = useState<any>(null);
 
     useEffect(() => {
         if (selectedItem) {
-            // If it's a node, use data. If edge, use root properties like label or data if generic
             if (itemType === 'node') {
                 setFormData(selectedItem.data);
             } else {
@@ -96,10 +102,46 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                     data: selectedItem.data || {} // Include data for edges
                 });
             }
+        } else {
+            setFormData(null); // Reset when nothing selected
         }
     }, [selectedItem, itemType]);
 
-    if (!selectedItem || !formData) return null;
+    // If no item selected, show Flow Details if metadata provided
+    if (!selectedItem) {
+        if (!isFlowInfoOpen || !flowMetadata || !onMetadataUpdate) return null;
+
+        return (
+            <SidePanel>
+                <CloseButton onClick={onClose}>&times;</CloseButton>
+                <Title>Flow Details</Title>
+                <FormGroup>
+                    <Label>Root Key</Label>
+                    <Input
+                        value={flowMetadata.rootKey}
+                        disabled
+                        title="Derived from YAML structure"
+                    />
+                </FormGroup>
+                <FormGroup>
+                    <Label>Flow Name</Label>
+                    <Input
+                        value={flowMetadata.name}
+                        onChange={(e) => onMetadataUpdate({ name: e.target.value })}
+                    />
+                </FormGroup>
+                <FormGroup>
+                    <Label>Description</Label>
+                    <TextArea
+                        value={flowMetadata.description}
+                        onChange={(e) => onMetadataUpdate({ description: e.target.value })}
+                    />
+                </FormGroup>
+            </SidePanel>
+        );
+    }
+
+    if (!formData) return null;
 
     const handleChange = (field: string, value: any) => {
         const updated = { ...formData, [field]: value };
@@ -107,10 +149,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
 
         // Propagate update
         if (itemType === 'node') {
-            // ... existing node logic ...
-            if (field.startsWith('action.')) {
-                // handle nested
-            }
             onUpdate(selectedItem.id, updated, 'node');
         } else {
             // For edges, we need to separate structural props vs data props
@@ -120,16 +158,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             // If field is 'clear_slots', update nested data
             if (field === 'clear_slots') {
                 const newData = { ...formData.data, clear_slots: value };
-                // We update local form data with NEW nested data structure? 
-                // Or we keep flat structure in formData and map back?
-                // Current formData init puts 'data' as a nested object.
-                // So let's update that nested object.
                 const updatedForm = { ...formData, data: newData };
                 setFormData(updatedForm); // Update UI state
-
-                // Pass full object update. 
-                // But FlowEditor expects specific structure update? 
-                // Let's look at FlowEditor updateData.
                 onUpdate(selectedItem.id, { label: updatedForm.label, data: newData }, 'edge');
             } else {
                 // Root property update (label)
@@ -241,10 +271,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                                     const parsed = JSON.parse(val);
                                     handleChange('rejections', parsed);
                                 } catch {
-                                    // If invalid JSON, we might need a way to store the raw string in local state 
-                                    // separate from the actual node data, or just update it as string 
-                                    // and let the backend/transformer handle it. 
-                                    // For now, let's update it as a raw string to allow typing
                                     handleChange('rejections', val);
                                 }
                             }}
