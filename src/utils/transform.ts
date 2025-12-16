@@ -14,6 +14,7 @@ export interface YamlNodeData {
 export interface SlotDefinition {
     name: string;
     type: string;
+    displayName?: string;
     description: string;
     source: string;
 }
@@ -223,6 +224,7 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; 
                     slots.push({
                         name,
                         type: config.type || 'text',
+                        displayName: config.displayName || '',
                         description: config.description || '',
                         source: config.source || ''
                     });

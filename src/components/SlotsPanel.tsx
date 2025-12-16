@@ -194,6 +194,14 @@ export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, 
                 />
               </FieldGroup>
               <FieldGroup>
+                <FieldLabel>Display Name</FieldLabel>
+                <FieldInput
+                  value={slot.displayName || ''}
+                  onChange={(e) => handleFieldChange(index, 'displayName', e.target.value)}
+                  placeholder="UI display label"
+                />
+              </FieldGroup>
+              <FieldGroup>
                 <FieldLabel>Description</FieldLabel>
                 <FieldInput
                   value={slot.description}

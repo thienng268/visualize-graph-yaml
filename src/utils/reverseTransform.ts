@@ -83,6 +83,7 @@ export const transformFlowToYaml = (nodes: Node[], edges: Edge[], slots?: SlotDe
         slots.forEach(slot => {
             slotsObj[slot.name] = {
                 type: slot.type,
+                ...(slot.displayName ? { displayName: slot.displayName } : {}),
                 description: slot.description,
                 source: slot.source
             };

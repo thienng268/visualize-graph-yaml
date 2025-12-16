@@ -51,7 +51,7 @@ const FloatingControls = styled.div`
   flex-direction: column;
   gap: 10px;
   z-index: 5;
-  align-items: flex-end;
+  align-items: stretch; /* Stretch to fill container for both-side alignment */
   pointer-events: none;
   
   & > * {
@@ -81,7 +81,7 @@ const ControlButton = styled.button`
     box-sizing: border-box; /* Ensure padding is included in width */
     transition: all 0.2s;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    width: 160px; /* Fixed width for uniformity */
+    /* width: 160px; Removed fixed width to allow stretch */
     text-align: center;
     
     &:hover {
@@ -103,8 +103,7 @@ export const FlowEditor: React.FC = () => {
     // Filter State
     const [filters, setFilters] = useState({
         rejections: false,
-        sets_slot: false,
-        clear_slots: false // Plural as requested
+        selectedSlot: ''
     });
     // Filter Logic Effect
     React.useEffect(() => {
@@ -127,8 +126,8 @@ export const FlowEditor: React.FC = () => {
                 };
             }
             // 2. Filter Highlighting (Border Overrides)
-            // Priority: Clear > Sets > Rejections (or cumulative? ReactFlow style is simple object)
-            // If multiple filters match, the last one applied here "wins" the border color.
+            // Priority: Selected Slot > Rejections
+
             // Rejections (Purple)
             if (filters.rejections && data.rejections && Array.isArray(data.rejections) && data.rejections.length > 0) {
                 style = {
@@ -138,34 +137,44 @@ export const FlowEditor: React.FC = () => {
                     boxShadow: '0 0 10px rgba(114, 46, 209, 0.6)'
                 };
             }
-            // Sets Slot (Green)
-            if (filters.sets_slot) {
-                if (data.sets_slot || data.set_slot || (data.action?.sets_slot) || (data.action?.set_slot)) {
+
+            // Selected Slot Highlighting (Cyan/Blue)
+            if (filters.selectedSlot) {
+                const slot = filters.selectedSlot;
+                let matchesSlot = false;
+
+                // Check 'collect'
+                if (data.collect === slot) matchesSlot = true;
+
+                // Check 'sets_slot' or 'set_slot' (can be string or in action)
+                if (data.sets_slot === slot || data.set_slot === slot) matchesSlot = true;
+                if (data.action) {
+                    if (data.action.sets_slot === slot || data.action.set_slot === slot) matchesSlot = true;
+                }
+
+                // Check 'clear_slots' (can be string or array)
+                const checkClear = (val: any) => {
+                    if (typeof val === 'string') return val === slot;
+                    if (Array.isArray(val)) return val.includes(slot);
+                    return false;
+                };
+
+                if (checkClear(data.clear_slots) || checkClear(data.clear_slot)) matchesSlot = true;
+                if (data.action && (checkClear(data.action.clear_slots) || checkClear(data.action.clear_slot))) matchesSlot = true;
+
+                // Check next transitions for clear_slots
+                if (data.next && Array.isArray(data.next)) {
+                    if (data.next.some((rule: any) => checkClear(rule.clear_slots) || checkClear(rule.clear_slot))) {
+                        matchesSlot = true;
+                    }
+                }
+
+                if (matchesSlot) {
                     style = {
                         ...style,
                         borderWidth: '3px',
-                        borderColor: '#52c41a', // Green
-                        boxShadow: '0 0 10px rgba(82, 196, 26, 0.6)'
-                    };
-                }
-            }
-            // Clear Slots (Orange)
-            if (filters.clear_slots) {
-                let hasClearSlots = false;
-                if (data.clear_slots || data.clear_slot || (data.action?.clear_slots) || (data.action?.clear_slot)) {
-                    hasClearSlots = true;
-                }
-                if (!hasClearSlots && data.next && Array.isArray(data.next)) {
-                    hasClearSlots = data.next.some((rule: any) =>
-                        rule.clear_slots || rule.clear_slot
-                    );
-                }
-                if (hasClearSlots) {
-                    style = {
-                        ...style,
-                        borderWidth: '3px',
-                        borderColor: '#faad14', // Orange
-                        boxShadow: '0 0 10px rgba(250, 173, 20, 0.6)'
+                        borderColor: '#fa8c16', // Orange as requested
+                        boxShadow: '0 0 10px rgba(250, 140, 22, 0.6)'
                     };
                 }
             }
@@ -185,22 +194,29 @@ export const FlowEditor: React.FC = () => {
             // NOTE: To safely toggle highlight without losing base style (like rejection red),
             // we should ideally store base style. But for now, let's assume standard behavior.
             let isHighlighted = false;
-            if (filters.clear_slots) {
-                // Check edge data for clear_slots (passed from transform)
-                // edge.data is generic, check existence
-                if (edge.data && (edge.data.clear_slots || edge.data.clear_slot)) {
+            // Edge highlighting: if selectedSlot is cleared in edge
+            if (filters.selectedSlot) {
+                const slot = filters.selectedSlot;
+                const checkClear = (val: any) => {
+                    if (typeof val === 'string') return val === slot;
+                    if (Array.isArray(val)) return val.includes(slot);
+                    return false;
+                };
+
+                if (edge.data && (checkClear(edge.data.clear_slots) || checkClear(edge.data.clear_slot))) {
                     isHighlighted = true;
                 }
             }
+
             if (isHighlighted) {
                 style = {
                     ...style,
-                    stroke: '#faad14',
+                    stroke: '#fa8c16', // Orange
                     strokeWidth: 3
                 };
                 markerEnd = {
                     type: MarkerType.ArrowClosed,
-                    color: '#faad14'
+                    color: '#fa8c16' // Orange
                 };
                 // Force animation for highlighted edges? User didn't ask, but good for visibility. 
                 // User said "lights up". Color is sufficient.
@@ -241,8 +257,11 @@ export const FlowEditor: React.FC = () => {
     // Added edges.length dependency or just filters?
     // If we load new YAML, setEdges is called, overwriting state. 
     // Effect runs because nodes.length likely changes. Good.
-    const handleFilterChange = (key: 'rejections' | 'sets_slot' | 'clear_slots') => {
-        setFilters(prev => ({ ...prev, [key]: !prev[key] }));
+    const handleFilterChange = (key: 'rejections' | 'selectedSlot', value?: any) => {
+        setFilters(prev => ({
+            ...prev,
+            [key]: value !== undefined ? value : !prev[key as 'rejections']
+        }));
     };
     const onConnect: OnConnect = useCallback(
         (params) => setEdges((eds) => addEdge({ ...params, type: 'default', markerEnd: { type: MarkerType.ArrowClosed, color: '#000' }, style: { stroke: '#333', strokeWidth: 2 } }, eds)),
@@ -326,6 +345,7 @@ export const FlowEditor: React.FC = () => {
         const newSlot: SlotDefinition = {
             name: `new_slot_${slots.length + 1}`,
             type: 'text',
+            displayName: '',
             description: '',
             source: ''
         };
@@ -475,7 +495,7 @@ export const FlowEditor: React.FC = () => {
                 <ControlButton onClick={() => setIsFlowInfoOpen(true)}>Edit Flow Info</ControlButton>
                 <ControlButton onClick={onAddNode}>+ Add Node</ControlButton>
                 <ControlButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download YAML</ControlButton>
-                <FilterPanel filters={filters} onFilterChange={handleFilterChange} />
+                <FilterPanel filters={filters} onFilterChange={handleFilterChange} slots={slots} />
             </FloatingControls>
         </Layout>
     );

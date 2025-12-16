@@ -14,9 +14,9 @@ const UploadButton = styled.label`
     box-sizing: border-box; /* Ensure padding is included in width */
     transition: all 0.2s;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    width: 160px; /* Fixed width for uniformity */
+    width: 100%; /* Stretch to fill container */
     text-align: center;
-    display: inline-block; /* label needs this to behave like button */
+    display: block; /* label needs this to behave like button */
     
     &:hover {
         background-color: #40a9ff;
