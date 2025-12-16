@@ -16,7 +16,6 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 import styled from 'styled-components';
 import yaml from 'js-yaml';
-
 import { Upload } from './Upload';
 import { PropertiesPanel } from './NodePanel';
 import { FilterPanel } from './FilterPanel';
@@ -24,11 +23,9 @@ import { transformYamlToFlow } from '../utils/transform';
 import { getLayoutedElements } from '../utils/layout';
 import { transformFlowToYaml } from '../utils/reverseTransform';
 import { CustomNode } from './CustomNode';
-
 const nodeTypes = {
     custom: CustomNode,
 };
-
 const EditorContainer = styled.div`
   width: 100vw;
   height: 100vh;
@@ -38,7 +35,6 @@ const EditorContainer = styled.div`
   background: #fdfdfd;
   overflow: hidden; 
 `;
-
 const Layout = styled.div`
   position: relative;
   width: 100vw;
@@ -46,7 +42,6 @@ const Layout = styled.div`
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 `;
-
 const FloatingControls = styled.div`
   position: absolute;
   top: 20px;
@@ -61,7 +56,6 @@ const FloatingControls = styled.div`
   & > * {
     pointer-events: auto;
   }
-
   h1 {
     font-size: 18px;
     color: #333;
@@ -74,7 +68,6 @@ const FloatingControls = styled.div`
     backdrop-filter: blur(4px);
   }
 `;
-
 const ControlButton = styled.button`
     background-color: #52c41a;
     color: white;
@@ -95,34 +88,28 @@ const ControlButton = styled.button`
         transform: translateY(-1px);
         box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
-
     &:active {
         transform: translateY(0);
     }
 `;
-
 export const FlowEditor: React.FC = () => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const [selectedItem, setSelectedItem] = useState<any>(null);
     const [itemType, setItemType] = useState<'node' | 'edge' | null>(null);
-
     const [rfInstance, setRfInstance] = useState<any>(null);
     const edgeReconnectSuccessful = useRef(false);
-
     // Filter State
     const [filters, setFilters] = useState({
         rejections: false,
         sets_slot: false,
         clear_slots: false // Plural as requested
     });
-
     // Filter Logic Effect
     React.useEffect(() => {
         setNodes((nds) => nds.map((node) => {
             const data = node.data;
             let style = {};
-
             // 1. Base Styles (End = Red, Action = Blue, Default = White)
             if (data.end === true) {
                 style = {
@@ -138,11 +125,9 @@ export const FlowEditor: React.FC = () => {
                     borderColor: '#1890ff'
                 };
             }
-
             // 2. Filter Highlighting (Border Overrides)
             // Priority: Clear > Sets > Rejections (or cumulative? ReactFlow style is simple object)
             // If multiple filters match, the last one applied here "wins" the border color.
-
             // Rejections (Purple)
             if (filters.rejections && data.rejections && Array.isArray(data.rejections) && data.rejections.length > 0) {
                 style = {
@@ -152,7 +137,6 @@ export const FlowEditor: React.FC = () => {
                     boxShadow: '0 0 10px rgba(114, 46, 209, 0.6)'
                 };
             }
-
             // Sets Slot (Green)
             if (filters.sets_slot) {
                 if (data.sets_slot || data.set_slot || (data.action?.sets_slot) || (data.action?.set_slot)) {
@@ -164,7 +148,6 @@ export const FlowEditor: React.FC = () => {
                     };
                 }
             }
-
             // Clear Slots (Orange)
             if (filters.clear_slots) {
                 let hasClearSlots = false;
@@ -176,7 +159,6 @@ export const FlowEditor: React.FC = () => {
                         rule.clear_slots || rule.clear_slot
                     );
                 }
-
                 if (hasClearSlots) {
                     style = {
                         ...style,
@@ -186,14 +168,11 @@ export const FlowEditor: React.FC = () => {
                     };
                 }
             }
-
             return { ...node, style };
         }));
-
         setEdges((eds) => eds.map((edge) => {
             let style = edge.style ? { ...edge.style } : { stroke: '#333', strokeWidth: 2 };
             let markerEnd = edge.markerEnd;
-
             // Reset to default if not highlighted
             // Default styling is usually { stroke: '#333', strokeWidth: 2 } defined in transform
             // But we need to be careful not to override rejection red edges
@@ -202,12 +181,9 @@ export const FlowEditor: React.FC = () => {
             // Rejection edges are red. Normal are #333.
             // We can infer base color from the edge type or label? 
             // transform.ts sets markerEnd color.
-
             // NOTE: To safely toggle highlight without losing base style (like rejection red),
             // we should ideally store base style. But for now, let's assume standard behavior.
-
             let isHighlighted = false;
-
             if (filters.clear_slots) {
                 // Check edge data for clear_slots (passed from transform)
                 // edge.data is generic, check existence
@@ -215,7 +191,6 @@ export const FlowEditor: React.FC = () => {
                     isHighlighted = true;
                 }
             }
-
             if (isHighlighted) {
                 style = {
                     ...style,
@@ -239,98 +214,79 @@ export const FlowEditor: React.FC = () => {
                 // But we are modifying it here! 
                 // Actually, transform.ts creates the initial edges.
                 // We should probably re-run formatting on the *original* edges, but we only have current edges.
-
                 // Fix: Access the *original* color if possible. 
                 // Or, if we see it is NOT highlighted, we set it back to default or red?
-
                 // Let's assume default for now. Rejection edges have specific logic?
                 // Rejection edges in transform.ts are just edges with empty label? 
                 // No, they are regular edges now. 
                 // User said "Rejection: if condition" previously, then hidden.
                 // Let's rely on standard style reset to #333 or red if we can detect it.
                 // Actually, simple way: properties panel might save data to edge using updateData.
-
                 // To avoid complexity: simple check. If currently yellow (#faad14), reset to #333.
                 // But wait, rejections might be red?
                 // transform logic for rejection: addEdge(nextTarget, '', undefined, ...) -> undefined style -> default #333.
                 // Wait, rejection edges were red before? User reverted them to normal.
                 // "Modified (Latest): Reverted the color to the default black/grey"
                 // So all edges are #333 by default! Great.
-
                 if (style.stroke === '#faad14') {
                     style.stroke = '#333';
                     style.strokeWidth = 2;
                     if (typeof markerEnd === 'object') markerEnd.color = '#000'; // Default arrow color
                 }
             }
-
             return { ...edge, style, markerEnd };
         }));
-
     }, [filters, nodes.length]); // Edges length should also be dependency?
     // Added edges.length dependency or just filters?
     // If we load new YAML, setEdges is called, overwriting state. 
     // Effect runs because nodes.length likely changes. Good.
-
     const handleFilterChange = (key: 'rejections' | 'sets_slot' | 'clear_slots') => {
         setFilters(prev => ({ ...prev, [key]: !prev[key] }));
     };
-
     const onConnect: OnConnect = useCallback(
         (params) => setEdges((eds) => addEdge({ ...params, type: 'default', markerEnd: { type: MarkerType.ArrowClosed, color: '#000' }, style: { stroke: '#333', strokeWidth: 2 } }, eds)),
         [setEdges]
     );
-
     const onReconnectStart = useCallback(() => {
         edgeReconnectSuccessful.current = false;
     }, []);
-
     const onReconnect = useCallback((oldEdge: Edge, newConnection: Connection) => {
         edgeReconnectSuccessful.current = true;
         setEdges((els) => reconnectEdge(oldEdge, newConnection, els));
     }, [setEdges]);
-
     const onReconnectEnd = useCallback((_: any, edge: Edge) => {
         if (!edgeReconnectSuccessful.current) {
             setEdges((eds) => eds.filter((e) => e.id !== edge.id));
         }
         edgeReconnectSuccessful.current = true;
     }, [setEdges]);
-
     // Flow Metadata State
     const [flowMetadata, setFlowMetadata] = useState({
         name: '',
         description: '',
         rootKey: 'flow'
     });
-
     // Flow Metadata UI State
     const [isFlowInfoOpen, setIsFlowInfoOpen] = useState(false);
-
     const onPaneClick = useCallback(() => {
         setSelectedItem(null);
         setIsFlowInfoOpen(false); // Close panel on background click
     }, []);
-
     const handleYamlLoad = (data: any) => {
         console.log('YAML Loaded:', data);
         if (data) {
             const { nodes: flowNodes, edges: flowEdges, metadata } = transformYamlToFlow(data);
-
             // Apply Layout
             const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
                 flowNodes,
                 flowEdges
             );
-
             console.log('Transformed Nodes:', layoutedNodes);
             console.log('Transformed Edges:', layoutedEdges);
             console.log('Extracted Metadata:', metadata);
-
             setFlowMetadata(metadata || { name: '', description: '', rootKey: 'flow' });
             setNodes(layoutedNodes);
             setEdges(layoutedEdges);
-
             setTimeout(() => {
                 if (rfInstance) {
                     rfInstance.fitView();
@@ -338,19 +294,14 @@ export const FlowEditor: React.FC = () => {
             }, 100);
         }
     };
-
     const onNodeClick = (_event: React.MouseEvent, node: Node) => {
         setSelectedItem(node);
         setItemType('node');
     };
-
     const onEdgeClick = (_event: React.MouseEvent, edge: Edge) => {
         setSelectedItem(edge);
         setItemType('edge');
     };
-
-
-
     const onDeleteItem = () => {
         if (!selectedItem) return;
         if (itemType === 'node') {
@@ -362,7 +313,6 @@ export const FlowEditor: React.FC = () => {
         setSelectedItem(null);
         setItemType(null);
     }
-
     const onAddNode = () => {
         const id = `new_node_${nodes.length + 1}`;
         const newNode: Node = {
@@ -373,12 +323,9 @@ export const FlowEditor: React.FC = () => {
         };
         setNodes((nds) => nds.concat(newNode));
     };
-
     const onExport = () => {
         const flowData = transformFlowToYaml(nodes, edges);
-
         let validFlowData: any = flowData;
-
         // If we have metadata with a rootKey (e.g., flow_khoa_the), wrap the steps
         if (flowMetadata.rootKey && flowMetadata.rootKey !== 'flow') {
             validFlowData = {
@@ -401,7 +348,6 @@ export const FlowEditor: React.FC = () => {
                 }
             };
         }
-
         const yamlString = yaml.dump(validFlowData);
         const blob = new Blob([yamlString], { type: 'text/yaml' });
         const url = URL.createObjectURL(blob);
@@ -413,7 +359,6 @@ export const FlowEditor: React.FC = () => {
         document.body.removeChild(a); // Remove after click
         URL.revokeObjectURL(url);
     };
-
     // Callback to update data from the panel
     const updateData = (id: string, newData: any, type: 'node' | 'edge') => {
         if (type === 'node') {
@@ -442,7 +387,6 @@ export const FlowEditor: React.FC = () => {
             setSelectedItem((prev: any) => prev ? { ...prev, label: newData.label, data: newData.data } : null);
         }
     };
-
     return (
         <Layout>
             <EditorContainer>
@@ -467,9 +411,7 @@ export const FlowEditor: React.FC = () => {
                     <MiniMap />
                     <Background gap={12} size={1} />
                 </ReactFlow>
-
                 <FilterPanel filters={filters} onFilterChange={handleFilterChange} />
-
                 <PropertiesPanel
                     selectedItem={selectedItem}
                     itemType={itemType}
@@ -482,9 +424,10 @@ export const FlowEditor: React.FC = () => {
                     flowMetadata={flowMetadata}
                     onMetadataUpdate={(newMeta) => setFlowMetadata(prev => ({ ...prev, ...newMeta }))}
                     isFlowInfoOpen={isFlowInfoOpen}
+                    nodes={nodes}
+                    edges={edges}
                 />
             </EditorContainer>
-
             <FloatingControls>
                 <h1>Workflow Visualizer</h1>
                 <div style={{ pointerEvents: 'auto' }}>

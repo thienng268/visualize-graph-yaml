@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import styled from 'styled-components';
-
 const SidePanel = styled.div`
   position: fixed;
   right: 0;
@@ -17,24 +16,20 @@ const SidePanel = styled.div`
   display: flex;
   flex-direction: column;
 `;
-
 const FormGroup = styled.div`
   margin-bottom: 15px;
 `;
-
 const Label = styled.label`
   display: block;
   margin-bottom: 5px;
   font-weight: bold;
 `;
-
 const Input = styled.input`
   width: 100%;
   padding: 8px;
   border: 1px solid #ddd;
   border-radius: 4px;
 `;
-
 const TextArea = styled.textarea`
   width: 100%;
   padding: 8px;
@@ -42,11 +37,9 @@ const TextArea = styled.textarea`
   border-radius: 4px;
   min-height: 80px;
 `;
-
 const Title = styled.h3`
   margin-top: 0;
 `;
-
 const CloseButton = styled.button`
   float: right;
   background: none;
@@ -54,7 +47,6 @@ const CloseButton = styled.button`
   font-size: 1.2em;
   cursor: pointer;
 `;
-
 interface PropertiesPanelProps {
     selectedItem: any | null;
     itemType: 'node' | 'edge' | null;
@@ -68,8 +60,9 @@ interface PropertiesPanelProps {
     };
     onMetadataUpdate?: (meta: { name?: string; description?: string; rootKey?: string }) => void;
     isFlowInfoOpen?: boolean;
+    nodes?: any[];
+    edges?: any[];
 }
-
 const DeleteButton = styled.button`
     background-color: #ff4d4f;
     color: white;
@@ -83,14 +76,23 @@ const DeleteButton = styled.button`
         background-color: #ff7875;
     }
 `;
-
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, itemType, onUpdate, onDelete, onClose, flowMetadata, onMetadataUpdate, isFlowInfoOpen }) => {
+const InsertSelect = styled.select`
+    margin-left: 10px;
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    font-size: 0.9em;
+    width: 200px;
+`;
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, itemType, onUpdate, onDelete, onClose, flowMetadata, onMetadataUpdate, isFlowInfoOpen, nodes = [], edges = [] }) => {
     const [formData, setFormData] = useState<any>(null);
-
+    const utterRef = useRef<HTMLTextAreaElement>(null);
+    const lastCursorPos = useRef<number | null>(null);
     useEffect(() => {
         if (selectedItem) {
             if (itemType === 'node') {
                 setFormData(selectedItem.data);
+                lastCursorPos.current = null; // Reset cursor tracking on node change
             } else {
                 setFormData({
                     id: selectedItem.id,
@@ -106,11 +108,74 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             setFormData(null); // Reset when nothing selected
         }
     }, [selectedItem, itemType]);
+    // Calculate available variables from ancestors
+    const availableVariables = useMemo(() => {
+        if (!selectedItem || itemType !== 'node' || !nodes.length) return [];
+        const ancestors = new Set<string>();
+        const queue = [selectedItem.id];
+        const visited = new Set<string>();
+        const variables = new Set<string>();
+        // BFS backwards to find all ancestors
+        while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            if (visited.has(currentId)) continue;
+            visited.add(currentId);
+            // Find incoming edges to current node
+            const incomingEdges = edges.filter(e => e.target === currentId);
+            for (const edge of incomingEdges) {
+                if (!visited.has(edge.source)) {
+                    queue.push(edge.source);
+                    ancestors.add(edge.source);
+                }
+            }
+        }
+        // Collect variables from ancestors
+        ancestors.forEach(ancestorId => {
+            const node = nodes.find(n => n.id === ancestorId);
+            if (node && node.data && node.data.collect) {
+                variables.add(node.data.collect);
+            }
+        });
+        return Array.from(variables);
+    }, [selectedItem, itemType, nodes, edges]);
+    const trackCursor = () => {
+        if (utterRef.current) {
+            lastCursorPos.current = utterRef.current.selectionStart;
+        }
+    };
+    const handleInsertVariable = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const variable = e.target.value;
+        if (!variable) return;
 
+        // Do nothing if user hasn't clicked in the textarea
+        if (lastCursorPos.current === null) {
+            e.target.value = '';
+            return;
+        }
+
+        if (formData) {
+            const text = formData.utter || '';
+            const insertion = `{${variable}}`;
+            const pos = lastCursorPos.current;
+            const newText = text.substring(0, pos) + insertion + text.substring(pos);
+            const updated = { ...formData, utter: newText };
+            setFormData(updated);
+            onUpdate(selectedItem.id, updated, 'node');
+            // Update cursor position
+            lastCursorPos.current = pos + insertion.length;
+            // Focus and set cursor
+            requestAnimationFrame(() => {
+                if (utterRef.current) {
+                    utterRef.current.focus();
+                    utterRef.current.setSelectionRange(lastCursorPos.current!, lastCursorPos.current!);
+                }
+            });
+        }
+        e.target.value = '';
+    };
     // If no item selected, show Flow Details if metadata provided
     if (!selectedItem) {
         if (!isFlowInfoOpen || !flowMetadata || !onMetadataUpdate) return null;
-
         return (
             <SidePanel>
                 <CloseButton onClick={onClose}>&times;</CloseButton>
@@ -140,13 +205,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             </SidePanel>
         );
     }
-
     if (!formData) return null;
-
     const handleChange = (field: string, value: any) => {
         const updated = { ...formData, [field]: value };
         setFormData(updated);
-
         // Propagate update
         if (itemType === 'node') {
             onUpdate(selectedItem.id, updated, 'node');
@@ -154,7 +216,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             // For edges, we need to separate structural props vs data props
             // ID, source, target are immutable here usually. Label is top level.
             // clear_slots is in 'data'.
-
             // If field is 'clear_slots', update nested data
             if (field === 'clear_slots') {
                 const newData = { ...formData.data, clear_slots: value };
@@ -167,7 +228,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             }
         }
     };
-
     // Existing node handlers...
     const handleNodeChange = (field: string, value: string) => {
         const updated = { ...formData, [field]: value };
@@ -179,19 +239,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
         setFormData(updated);
         onUpdate(selectedItem.id, updated, 'node');
     };
-
     const handleActionChange = (field: string, value: string) => {
         const updatedAction = { ...formData.action, [field]: value };
         const updated = { ...formData, action: updatedAction };
         setFormData(updated);
         onUpdate(selectedItem.id, updated, 'node');
     }
-
     return (
         <SidePanel>
             <CloseButton onClick={onClose}>&times;</CloseButton>
             <Title>{itemType === 'node' ? 'Node Details' : 'Edge Details'}</Title>
-
             {itemType === 'node' ? (
                 // Node Form
                 <>
@@ -203,23 +260,34 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             disabled
                         />
                     </FormGroup>
-
                     {/* Top-level Utterance */}
                     <FormGroup>
-                        <Label>Utterance (Main)</Label>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                            <Label style={{ marginBottom: 0 }}>Utterance (Main)</Label>
+                            {availableVariables.length > 0 && (
+                                <InsertSelect onChange={handleInsertVariable} defaultValue="">
+                                    <option value="" disabled>Insert Variable...</option>
+                                    {availableVariables.map(v => (
+                                        <option key={v} value={v}>{v}</option>
+                                    ))}
+                                </InsertSelect>
+                            )}
+                        </div>
                         <TextArea
+                            ref={utterRef}
                             value={formData.utter || ''}
                             onChange={(e) => handleNodeChange('utter', e.target.value)}
+                            onSelect={trackCursor}
+                            onClick={trackCursor}
+                            onKeyUp={trackCursor}
+                            onBlur={trackCursor}
                         />
                     </FormGroup>
-
                     <FormGroup>
                         <Label>Collect</Label>
                         <Input value={formData.collect || ''} onChange={(e) => handleChange('collect', e.target.value)} />
                     </FormGroup>
-
                     <h4 style={{ marginBottom: '5px', borderTop: '1px solid #eee', paddingTop: '10px' }}>Action Details</h4>
-
                     <FormGroup>
                         <Label>Action ID</Label>
                         <Input
@@ -227,7 +295,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             onChange={(e) => handleActionChange('id', e.target.value)}
                         />
                     </FormGroup>
-
                     <FormGroup>
                         <Label>Action Description</Label>
                         <TextArea
@@ -235,7 +302,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             onChange={(e) => handleActionChange('description', e.target.value)}
                         />
                     </FormGroup>
-
                     <FormGroup>
                         <Label>Sets Slot</Label>
                         <Input
@@ -243,7 +309,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             onChange={(e) => handleActionChange('sets_slot', e.target.value)}
                         />
                     </FormGroup>
-
                     <FormGroup>
                         <Label>Clear Slots</Label>
                         <Input
@@ -251,7 +316,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             onChange={(e) => handleActionChange('clear_slots', e.target.value)}
                         />
                     </FormGroup>
-
                     <FormGroup>
                         <Label>Action Utterance</Label>
                         <TextArea
@@ -259,7 +323,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             onChange={(e) => handleActionChange('utter', e.target.value)}
                         />
                     </FormGroup>
-
                     <FormGroup>
                         <Label>Rejections (JSON)</Label>
                         <TextArea
@@ -276,8 +339,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             }}
                         />
                     </FormGroup>
-
-
                 </>
             ) : (
                 // Edge Form
