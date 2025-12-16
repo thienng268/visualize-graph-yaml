@@ -2,21 +2,18 @@ import React from 'react';
 import styled from 'styled-components';
 
 const Container = styled.div`
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  width: 250px; /* Reduced width */
+  width: 250px;
   background: white;
   border: 1px solid #e8e8e8;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  z-index: 5;
+  border-radius: 4px;
+  padding: 10px 12px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  margin-top: 8px;
 `;
 
 const Title = styled.h3`
-  margin: 0 0 12px 0;
-  font-size: 16px;
+  margin: 0 0 8px 0;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
 `;
@@ -24,12 +21,16 @@ const Title = styled.h3`
 const FilterOption = styled.label`
   display: flex;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
   
   input {
-    margin-right: 8px;
+    margin-right: 6px;
   }
 `;
 

@@ -11,7 +11,14 @@ export interface YamlNodeData {
     // Add other potential fields
 }
 
-export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; metadata: any } => {
+export interface SlotDefinition {
+    name: string;
+    type: string;
+    description: string;
+    source: string;
+}
+
+export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; metadata: any; slots: SlotDefinition[] } => {
     const nodes: Node[] = [];
     const edges: Edge[] = [];
     let yPos = 0;
@@ -206,5 +213,23 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; 
         }
     }
 
-    return { nodes, edges, metadata };
+    // Extract Slots
+    const slots: SlotDefinition[] = [];
+    if (typeof data === 'object' && data !== null && data.slots) {
+        const slotsObj = data.slots;
+        if (typeof slotsObj === 'object' && !Array.isArray(slotsObj)) {
+            Object.entries(slotsObj).forEach(([name, config]: [string, any]) => {
+                if (typeof config === 'object' && config !== null) {
+                    slots.push({
+                        name,
+                        type: config.type || 'text',
+                        description: config.description || '',
+                        source: config.source || ''
+                    });
+                }
+            });
+        }
+    }
+
+    return { nodes, edges, metadata, slots };
 };

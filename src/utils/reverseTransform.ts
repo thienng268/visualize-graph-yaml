@@ -1,6 +1,7 @@
 import { type Node, type Edge } from 'reactflow';
+import type { SlotDefinition } from './transform';
 
-export const transformFlowToYaml = (nodes: Node[], edges: Edge[]) => {
+export const transformFlowToYaml = (nodes: Node[], edges: Edge[], slots?: SlotDefinition[]) => {
     const yamlStructure = nodes.map((node) => {
         // Base node structure
         const item: any = {
@@ -75,6 +76,23 @@ export const transformFlowToYaml = (nodes: Node[], edges: Edge[]) => {
 
         return item;
     });
+
+    // Convert slots array to YAML object format
+    const slotsObj: any = {};
+    if (slots && slots.length > 0) {
+        slots.forEach(slot => {
+            slotsObj[slot.name] = {
+                type: slot.type,
+                description: slot.description,
+                source: slot.source
+            };
+        });
+    }
+
+    // Return with slots if they exist
+    if (Object.keys(slotsObj).length > 0) {
+        return { slots: slotsObj, steps: yamlStructure };
+    }
 
     return yamlStructure;
 };

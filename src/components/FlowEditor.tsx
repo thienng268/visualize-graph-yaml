@@ -19,7 +19,8 @@ import yaml from 'js-yaml';
 import { Upload } from './Upload';
 import { PropertiesPanel } from './NodePanel';
 import { FilterPanel } from './FilterPanel';
-import { transformYamlToFlow } from '../utils/transform';
+import { SlotsPanel } from './SlotsPanel';
+import { transformYamlToFlow, type SlotDefinition } from '../utils/transform';
 import { getLayoutedElements } from '../utils/layout';
 import { transformFlowToYaml } from '../utils/reverseTransform';
 import { CustomNode } from './CustomNode';
@@ -266,6 +267,8 @@ export const FlowEditor: React.FC = () => {
         description: '',
         rootKey: 'flow'
     });
+    // Slots State
+    const [slots, setSlots] = useState<SlotDefinition[]>([]);
     // Flow Metadata UI State
     const [isFlowInfoOpen, setIsFlowInfoOpen] = useState(false);
     const onPaneClick = useCallback(() => {
@@ -275,7 +278,7 @@ export const FlowEditor: React.FC = () => {
     const handleYamlLoad = (data: any) => {
         console.log('YAML Loaded:', data);
         if (data) {
-            const { nodes: flowNodes, edges: flowEdges, metadata } = transformYamlToFlow(data);
+            const { nodes: flowNodes, edges: flowEdges, metadata, slots: extractedSlots } = transformYamlToFlow(data);
             // Apply Layout
             const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
                 flowNodes,
@@ -284,7 +287,9 @@ export const FlowEditor: React.FC = () => {
             console.log('Transformed Nodes:', layoutedNodes);
             console.log('Transformed Edges:', layoutedEdges);
             console.log('Extracted Metadata:', metadata);
+            console.log('Extracted Slots:', extractedSlots);
             setFlowMetadata(metadata || { name: '', description: '', rootKey: 'flow' });
+            setSlots(extractedSlots || []);
             setNodes(layoutedNodes);
             setEdges(layoutedEdges);
             setTimeout(() => {
@@ -313,6 +318,22 @@ export const FlowEditor: React.FC = () => {
         setSelectedItem(null);
         setItemType(null);
     }
+    // Slot Handlers
+    const onUpdateSlot = (index: number, updatedSlot: SlotDefinition) => {
+        setSlots(prev => prev.map((slot, i) => i === index ? updatedSlot : slot));
+    };
+    const onAddSlot = () => {
+        const newSlot: SlotDefinition = {
+            name: `new_slot_${slots.length + 1}`,
+            type: 'text',
+            description: '',
+            source: ''
+        };
+        setSlots(prev => [...prev, newSlot]);
+    };
+    const onDeleteSlot = (index: number) => {
+        setSlots(prev => prev.filter((_, i) => i !== index));
+    };
     const onAddNode = () => {
         const id = `new_node_${nodes.length + 1}`;
         const newNode: Node = {
@@ -324,15 +345,21 @@ export const FlowEditor: React.FC = () => {
         setNodes((nds) => nds.concat(newNode));
     };
     const onExport = () => {
-        const flowData = transformFlowToYaml(nodes, edges);
+        const flowData = transformFlowToYaml(nodes, edges, slots);
         let validFlowData: any = flowData;
         // If we have metadata with a rootKey (e.g., flow_khoa_the), wrap the steps
+        // flowData might be { slots: {...}, steps: [...] } or just [...]
+        const hasSlots = flowData && typeof flowData === 'object' && 'slots' in flowData;
+        const steps = hasSlots ? flowData.steps : flowData;
+        const slotsData = hasSlots ? flowData.slots : undefined;
+
         if (flowMetadata.rootKey && flowMetadata.rootKey !== 'flow') {
             validFlowData = {
+                ...(slotsData ? { slots: slotsData } : {}),
                 [flowMetadata.rootKey]: {
                     name: flowMetadata.name,
                     description: flowMetadata.description,
-                    steps: flowData
+                    steps
                 }
             };
         } else if (flowMetadata.name || flowMetadata.description) {
@@ -341,11 +368,18 @@ export const FlowEditor: React.FC = () => {
             // User sample implies wrapping is important.
             // Let's wrap in 'flow' if rootKey is default but fields exist
             validFlowData = {
+                ...(slotsData ? { slots: slotsData } : {}),
                 [flowMetadata.rootKey || 'flow']: {
                     name: flowMetadata.name,
                     description: flowMetadata.description,
-                    steps: flowData
+                    steps
                 }
+            };
+        } else if (hasSlots) {
+            // No metadata but has slots
+            validFlowData = {
+                slots: slotsData,
+                steps
             };
         }
         const yamlString = yaml.dump(validFlowData);
@@ -411,7 +445,12 @@ export const FlowEditor: React.FC = () => {
                     <MiniMap />
                     <Background gap={12} size={1} />
                 </ReactFlow>
-                <FilterPanel filters={filters} onFilterChange={handleFilterChange} />
+                <SlotsPanel
+                    slots={slots}
+                    onUpdate={onUpdateSlot}
+                    onAdd={onAddSlot}
+                    onDelete={onDeleteSlot}
+                />
                 <PropertiesPanel
                     selectedItem={selectedItem}
                     itemType={itemType}
@@ -436,6 +475,7 @@ export const FlowEditor: React.FC = () => {
                 <ControlButton onClick={() => setIsFlowInfoOpen(true)}>Edit Flow Info</ControlButton>
                 <ControlButton onClick={onAddNode}>+ Add Node</ControlButton>
                 <ControlButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download YAML</ControlButton>
+                <FilterPanel filters={filters} onFilterChange={handleFilterChange} />
             </FloatingControls>
         </Layout>
     );
