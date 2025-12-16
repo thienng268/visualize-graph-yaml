@@ -416,15 +416,48 @@ export const FlowEditor: React.FC = () => {
     // Callback to update data from the panel
     const updateData = (id: string, newData: any, type: 'node' | 'edge') => {
         if (type === 'node') {
-            setNodes((nds) =>
-                nds.map((node) => {
+            setNodes((nds) => {
+                // Check if ID is being changed
+                const newId = newData.id;
+                if (newId && newId !== id) {
+                    // Check for duplicate ID
+                    if (nds.some(n => n.id === newId)) {
+                        alert(`Node ID "${newId}" already exists. Please choose a unique ID.`);
+                        return nds;
+                    }
+
+                    // Update edges first to point to new ID
+                    setEdges(eds => eds.map(e => {
+                        let updated = { ...e };
+                        if (e.source === id) updated.source = newId;
+                        if (e.target === id) updated.target = newId;
+                        return updated;
+                    }));
+
+                    // Update the node
+                    return nds.map((node) => {
+                        if (node.id === id) {
+                            return { ...node, id: newId, data: newData };
+                        }
+                        return node;
+                    });
+                }
+
+                // Normal update (no ID change)
+                return nds.map((node) => {
                     if (node.id === id) {
                         return { ...node, data: newData };
                     }
                     return node;
-                })
-            );
-            setSelectedItem((prev: any) => prev ? { ...prev, data: newData } : null);
+                });
+            });
+
+            // Update selected item if ID changed
+            if (newData.id && newData.id !== id) {
+                setSelectedItem((prev: any) => prev ? { ...prev, id: newData.id, data: newData } : null);
+            } else {
+                setSelectedItem((prev: any) => prev ? { ...prev, data: newData } : null);
+            }
         } else {
             setEdges((eds) =>
                 eds.map((edge) => {

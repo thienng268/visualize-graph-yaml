@@ -257,7 +257,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                         <Input
                             value={formData.id || ''}
                             onChange={(e) => handleNodeChange('id', e.target.value)}
-                            disabled
                         />
                     </FormGroup>
                     {/* Top-level Utterance */}
