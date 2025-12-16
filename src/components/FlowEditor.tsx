@@ -123,53 +123,68 @@ export const FlowEditor: React.FC = () => {
             const data = node.data;
             let style = {};
 
-            // 1. Base 'end' style (Standard Red Background)
+            // 1. Base Styles (End = Red, Action = Blue, Default = White)
             if (data.end === true) {
                 style = {
                     ...style,
                     backgroundColor: '#ffccc7', // Light red background
                     borderColor: '#ff4d4f'
                 };
+            } else if (data.action && Object.keys(data.action).length > 0) {
+                // Action Node (Light Blue)
+                style = {
+                    ...style,
+                    backgroundColor: '#e6f7ff',
+                    borderColor: '#1890ff'
+                };
             }
 
-            // 2. Filter Highlighting (Yellow Border/Glow)
-            let isHighlighted = false;
+            // 2. Filter Highlighting (Border Overrides)
+            // Priority: Clear > Sets > Rejections (or cumulative? ReactFlow style is simple object)
+            // If multiple filters match, the last one applied here "wins" the border color.
 
-            // Check Rejections
+            // Rejections (Purple)
             if (filters.rejections && data.rejections && Array.isArray(data.rejections) && data.rejections.length > 0) {
-                isHighlighted = true;
+                style = {
+                    ...style,
+                    borderWidth: '3px',
+                    borderColor: '#722ed1', // Purple
+                    boxShadow: '0 0 10px rgba(114, 46, 209, 0.6)'
+                };
             }
 
-            // Check sets_slot (Found in action details usually, or root data if simplified)
-            // Checking both potential locations
+            // Sets Slot (Green)
             if (filters.sets_slot) {
-                if (data.sets_slot || data.set_slot || (data.action?.sets_slot) || (data.action?.set_slot)) isHighlighted = true;
+                if (data.sets_slot || data.set_slot || (data.action?.sets_slot) || (data.action?.set_slot)) {
+                    style = {
+                        ...style,
+                        borderWidth: '3px',
+                        borderColor: '#52c41a', // Green
+                        boxShadow: '0 0 10px rgba(82, 196, 26, 0.6)'
+                    };
+                }
             }
 
-            // Check clear_slots (plural as requested)
+            // Clear Slots (Orange)
             if (filters.clear_slots) {
                 let hasClearSlots = false;
-                // 1. Direct property
                 if (data.clear_slots || data.clear_slot || (data.action?.clear_slots) || (data.action?.clear_slot)) {
                     hasClearSlots = true;
                 }
-                // 2. Nested in 'next' rules
                 if (!hasClearSlots && data.next && Array.isArray(data.next)) {
                     hasClearSlots = data.next.some((rule: any) =>
                         rule.clear_slots || rule.clear_slot
                     );
                 }
 
-                if (hasClearSlots) isHighlighted = true;
-            }
-
-            if (isHighlighted) {
-                style = {
-                    ...style,
-                    borderWidth: '3px',
-                    borderColor: '#faad14', // Yellow/Orange highlight
-                    boxShadow: '0 0 10px rgba(250, 173, 20, 0.6)'
-                };
+                if (hasClearSlots) {
+                    style = {
+                        ...style,
+                        borderWidth: '3px',
+                        borderColor: '#faad14', // Orange
+                        boxShadow: '0 0 10px rgba(250, 173, 20, 0.6)'
+                    };
+                }
             }
 
             return { ...node, style };
