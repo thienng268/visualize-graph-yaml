@@ -23,22 +23,8 @@ export const transformFlowToYaml = (nodes: Node[], edges: Edge[], slots?: SlotDe
                 // We need to inject 'next' into 'action' if 'action' exists, 
                 // or at root if there is no action object?
                 // Looking at sample.yaml, 'next' is inside 'action'.
-                if (item.action) {
-                    item.action.next = outgoingEdges[0].target;
-                } else {
-                    // If no action object, maybe it's just next? 
-                    // But sample has distinct structure. 
-                    // Let's assume most nodes have action. 
-                    // If not, we might need to conform to a specific schema.
-                    // For now, let's put next at root if action doesn't exist, 
-                    // or create action object if needed?
-                    // Sample shows: 
-                    // - id: ask_otp_code
-                    //   action: ...
-
-                    // If the node data has 'action' object, we put 'next' there.
-                    item.next = outgoingEdges[0].target;
-                }
+                // Match the requested structure: next is a sibling of action, not inside it.
+                item.next = outgoingEdges[0].target;
             } else {
                 // Multiple edges or conditional edge
                 const nextSteps = outgoingEdges.map(edge => {
@@ -63,11 +49,7 @@ export const transformFlowToYaml = (nodes: Node[], edges: Edge[], slots?: SlotDe
                     }
                 });
 
-                if (item.action) {
-                    item.action.next = nextSteps;
-                } else {
-                    item.next = nextSteps; // Fallback
-                }
+                item.next = nextSteps;
             }
         }
 
@@ -77,22 +59,19 @@ export const transformFlowToYaml = (nodes: Node[], edges: Edge[], slots?: SlotDe
         return item;
     });
 
-    // Convert slots array to YAML object format
-    const slotsObj: any = {};
-    if (slots && slots.length > 0) {
-        slots.forEach(slot => {
-            slotsObj[slot.name] = {
-                type: slot.type,
-                ...(slot.displayName ? { displayName: slot.displayName } : {}),
-                description: slot.description,
-                source: slot.source
-            };
-        });
-    }
+    // Convert slots to list format (array of objects) as per Example 1
+    const slotsList = slots ? slots.map(slot => ({
+        name: slot.name,
+        displayName: slot.displayName,
+        type: slot.type,
+        description: slot.description,
+        // Include other properties if necessary, assuming source might be one
+        ...(slot.source ? { source: slot.source } : {})
+    })) : [];
 
     // Return with slots if they exist
-    if (Object.keys(slotsObj).length > 0) {
-        return { slots: slotsObj, steps: yamlStructure };
+    if (slotsList.length > 0) {
+        return { slots: slotsList, steps: yamlStructure };
     }
 
     return yamlStructure;

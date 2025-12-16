@@ -184,8 +184,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                     <Label>Root Key</Label>
                     <Input
                         value={flowMetadata.rootKey}
-                        disabled
-                        title="Derived from YAML structure"
+                        onChange={(e) => onMetadataUpdate({ rootKey: e.target.value })}
+                        placeholder="e.g. flow_khoa_the"
                     />
                 </FormGroup>
                 <FormGroup>

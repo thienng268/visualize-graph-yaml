@@ -370,40 +370,71 @@ export const FlowEditor: React.FC = () => {
         // If we have metadata with a rootKey (e.g., flow_khoa_the), wrap the steps
         // flowData might be { slots: {...}, steps: [...] } or just [...]
         const hasSlots = flowData && typeof flowData === 'object' && 'slots' in flowData;
-        const steps = hasSlots ? flowData.steps : flowData;
-        const slotsData = hasSlots ? flowData.slots : undefined;
+        const steps = hasSlots ? (flowData as any).steps : flowData;
+        const slotsData = hasSlots ? (flowData as any).slots : undefined;
 
         if (flowMetadata.rootKey && flowMetadata.rootKey !== 'flow') {
             validFlowData = {
-                ...(slotsData ? { slots: slotsData } : {}),
                 [flowMetadata.rootKey]: {
                     name: flowMetadata.name,
                     description: flowMetadata.description,
+                    ...(slotsData ? { slots: slotsData } : {}),
                     steps
                 }
             };
-        } else if (flowMetadata.name || flowMetadata.description) {
-            // If no specific root key but has metadata, wrap in generic 'flow' or mixed? 
-            // Revert to simple steps if generic?
-            // User sample implies wrapping is important.
-            // Let's wrap in 'flow' if rootKey is default but fields exist
+        } else {
+            // Default wrapping
             validFlowData = {
-                ...(slotsData ? { slots: slotsData } : {}),
                 [flowMetadata.rootKey || 'flow']: {
                     name: flowMetadata.name,
                     description: flowMetadata.description,
+                    ...(slotsData ? { slots: slotsData } : {}),
                     steps
                 }
             };
-        } else if (hasSlots) {
-            // No metadata but has slots
-            validFlowData = {
-                slots: slotsData,
-                steps
-            };
         }
-        const yamlString = yaml.dump(validFlowData);
-        const blob = new Blob([yamlString], { type: 'text/yaml' });
+
+        // Dump with double quotes preference
+        const yamlString = yaml.dump(validFlowData, {
+            lineWidth: -1,
+            styles: {
+                '!!str': 'double'
+            }
+        });
+
+        // Post-process to ensure name, description, displayName, type, and source are ALWAYS quoted with double quotes
+        const quotedYaml = yamlString.split('\n').map(line => {
+            // Match keys: name, description, displayName, type, source
+            const match = line.match(/^(\s*-?\s*)(name|description|displayName|type|source):\s+(.+)$/);
+            if (match) {
+                const [_, prefix, key, value] = match;
+                const trimmedValue = value.trim();
+
+                // If it's already double quoted properly (starts and ends with "), leave it
+                if (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) {
+                    return line;
+                }
+
+                let content = trimmedValue;
+
+                // If single quoted, unwrap and unescape
+                if (trimmedValue.startsWith("'") && trimmedValue.endsWith("'")) {
+                    content = trimmedValue.slice(1, -1);
+                    content = content.replace(/''/g, "'");
+                }
+                // If block scalars, ignore
+                else if (trimmedValue.startsWith('|') || trimmedValue.startsWith('>')) {
+                    return line;
+                }
+
+                // Wrap in double quotes, escaping existing double quotes
+                const escapedContent = content.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                return `${prefix}${key}: "${escapedContent}"`;
+            }
+            return line;
+        }).join('\n');
+
+        const blob = new Blob([quotedYaml], { type: 'text/yaml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -530,6 +561,6 @@ export const FlowEditor: React.FC = () => {
                 <ControlButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download YAML</ControlButton>
                 <FilterPanel filters={filters} onFilterChange={handleFilterChange} slots={slots} />
             </FloatingControls>
-        </Layout>
+        </Layout >
     );
 };
