@@ -245,6 +245,16 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
         setFormData(updated);
         onUpdate(selectedItem.id, updated, 'node');
     }
+
+    // Determine visibility
+    const hasAction = !!(formData.action?.id || formData.action?.description || formData.action?.utter || formData.action?.sets_slot);
+    const hasCollect = !!(formData.collect || formData.clear_slots);
+
+    // Show sections if they exist, or if the node is empty (neither exists) so the user can choose.
+    // Also show if both exist (mixed state) to allow editing/cleanup.
+    const showCollect = hasCollect || !hasAction;
+    const showAction = hasAction || !hasCollect;
+
     return (
         <SidePanel>
             <CloseButton onClick={onClose}>&times;</CloseButton>
@@ -282,10 +292,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             onBlur={trackCursor}
                         />
                     </FormGroup>
-                    <FormGroup>
-                        <Label>Collect</Label>
-                        <Input value={formData.collect || ''} onChange={(e) => handleChange('collect', e.target.value)} />
-                    </FormGroup>
+
                     <FormGroup>
                         <Label>Description</Label>
                         <TextArea
@@ -294,43 +301,58 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             placeholder="Node description"
                         />
                     </FormGroup>
-                    <FormGroup>
-                        <Label>Clear Slots</Label>
-                        <Input
-                            value={formData.clear_slots || ''}
-                            onChange={(e) => handleChange('clear_slots', e.target.value)}
-                            placeholder="e.g. [slot1, slot2]"
-                        />
-                    </FormGroup>
-                    <h4 style={{ marginBottom: '5px', borderTop: '1px solid #eee', paddingTop: '10px' }}>Action Details</h4>
-                    <FormGroup>
-                        <Label>Action ID</Label>
-                        <Input
-                            value={formData.action?.id || ''}
-                            onChange={(e) => handleActionChange('id', e.target.value)}
-                        />
-                    </FormGroup>
-                    <FormGroup>
-                        <Label>Action Description</Label>
-                        <TextArea
-                            value={formData.action?.description || ''}
-                            onChange={(e) => handleActionChange('description', e.target.value)}
-                        />
-                    </FormGroup>
-                    <FormGroup>
-                        <Label>Action Utterance</Label>
-                        <TextArea
-                            value={formData.action?.utter || ''}
-                            onChange={(e) => handleActionChange('utter', e.target.value)}
-                        />
-                    </FormGroup>
-                    <FormGroup>
-                        <Label>Set Slot</Label>
-                        <Input
-                            value={formData.action?.sets_slot || ''}
-                            onChange={(e) => handleActionChange('sets_slot', e.target.value)}
-                        />
-                    </FormGroup>
+
+                    {showCollect && (
+                        <>
+                            <FormGroup>
+                                <Label>Collect</Label>
+                                <Input value={formData.collect || ''} onChange={(e) => handleChange('collect', e.target.value)} />
+                            </FormGroup>
+                            <FormGroup>
+                                <Label>Clear Slots</Label>
+                                <Input
+                                    value={formData.clear_slots || ''}
+                                    onChange={(e) => handleChange('clear_slots', e.target.value)}
+                                    placeholder="e.g. [slot1, slot2]"
+                                />
+                            </FormGroup>
+                        </>
+                    )}
+
+                    {showAction && (
+                        <>
+                            <h4 style={{ marginBottom: '5px', borderTop: '1px solid #eee', paddingTop: '10px' }}>Action Details</h4>
+                            <FormGroup>
+                                <Label>Action ID</Label>
+                                <Input
+                                    value={formData.action?.id || ''}
+                                    onChange={(e) => handleActionChange('id', e.target.value)}
+                                />
+                            </FormGroup>
+                            <FormGroup>
+                                <Label>Action Description</Label>
+                                <TextArea
+                                    value={formData.action?.description || ''}
+                                    onChange={(e) => handleActionChange('description', e.target.value)}
+                                />
+                            </FormGroup>
+                            <FormGroup>
+                                <Label>Action Utterance</Label>
+                                <TextArea
+                                    value={formData.action?.utter || ''}
+                                    onChange={(e) => handleActionChange('utter', e.target.value)}
+                                />
+                            </FormGroup>
+                            <FormGroup>
+                                <Label>Set Slot</Label>
+                                <Input
+                                    value={formData.action?.sets_slot || ''}
+                                    onChange={(e) => handleActionChange('sets_slot', e.target.value)}
+                                />
+                            </FormGroup>
+                        </>
+                    )}
+
                     <FormGroup>
                         <Label>Rejections (JSON)</Label>
                         <TextArea
