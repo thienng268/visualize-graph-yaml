@@ -169,6 +169,15 @@ export const FlowEditor: React.FC = () => {
                     }
                 }
 
+                // Check for slot usage in utterances (e.g., "Hello {slot_name}")
+                const slotPattern = `{${slot}}`;
+                if (data.utter && typeof data.utter === 'string' && data.utter.includes(slotPattern)) {
+                    matchesSlot = true;
+                }
+                if (data.action && data.action.utter && typeof data.action.utter === 'string' && data.action.utter.includes(slotPattern)) {
+                    matchesSlot = true;
+                }
+
                 if (matchesSlot) {
                     style = {
                         ...style,

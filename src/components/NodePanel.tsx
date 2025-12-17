@@ -325,6 +325,13 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                         />
                     </FormGroup>
                     <FormGroup>
+                        <Label>Set Slot</Label>
+                        <Input
+                            value={formData.action?.sets_slot || ''}
+                            onChange={(e) => handleActionChange('sets_slot', e.target.value)}
+                        />
+                    </FormGroup>
+                    <FormGroup>
                         <Label>Rejections (JSON)</Label>
                         <TextArea
                             value={typeof formData.rejections === 'string' ? formData.rejections : JSON.stringify(formData.rejections || [], null, 2)}
