@@ -79,7 +79,10 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; 
                 'Description': 'description',
                 'Rejections': 'rejections',
                 'Id': 'id',
-                'ID': 'id'
+                'ID': 'id',
+                'clear_slots': 'clear_slots',
+                'clears_slot': 'clear_slots',
+                'Clear_Slots': 'clear_slots'
             };
 
             const normalizedKey = map[cleanKeyChar] || cleanKeyChar;
@@ -95,6 +98,20 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; 
 
         // Fallback for ID if finding fails or mixed case
         if (!newItem.id && item.id) newItem.id = item.id;
+
+        // Hoist clear_slots from action if present
+        if (newItem.action && typeof newItem.action === 'object') {
+            const action = newItem.action;
+            const clearSlotVal = action.clear_slots || action.clears_slot || action.Clear_Slots;
+            if (clearSlotVal) {
+                newItem.clear_slots = clearSlotVal;
+                // Optional: remove from action to avoid duplication/confusion?
+                // User said "there's no clear slot inside the action", so yes, let's clean it.
+                delete action.clear_slots;
+                delete action.clears_slot;
+                delete action.Clear_Slots;
+            }
+        }
 
         return newItem;
     };

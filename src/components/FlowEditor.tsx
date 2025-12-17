@@ -394,43 +394,66 @@ export const FlowEditor: React.FC = () => {
             };
         }
 
-        // Dump with double quotes preference
+        // Dump without global double quotes to keep 'then', 'else', and step IDs clean
         const yamlString = yaml.dump(validFlowData, {
             lineWidth: -1,
-            styles: {
-                '!!str': 'double'
-            }
+            noCompatMode: true
         });
 
-        // Post-process to ensure name, description, displayName, type, and source are ALWAYS quoted with double quotes
+        // Post-process to apply specific formatting rules
         const quotedYaml = yamlString.split('\n').map(line => {
-            // Match keys: name, description, displayName, type, source
-            const match = line.match(/^(\s*-?\s*)(name|description|displayName|type|source):\s+(.+)$/);
-            if (match) {
-                const [_, prefix, key, value] = match;
+            const trimmedLine = line.trim();
+
+            // 1. Force | instead of |- for multiline utter
+            if (trimmedLine.startsWith('utter: |-')) {
+                return line.replace('|-', '|');
+            }
+
+            // 2. Unquote clear_slots if it was quoted by yaml.dump (e.g. clear_slots: "[a, b]")
+            // We want clear_slots: [a, b]
+            const clearSlotsMatch = line.match(/^(\s*-?\s*)clear_slots:\s+(.+)$/);
+            if (clearSlotsMatch) {
+                const [_, prefix, value] = clearSlotsMatch;
+                let val = value.trim();
+                // Remove surrounding quotes if present
+                if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+                    val = val.slice(1, -1);
+                }
+                return `${prefix}clear_slots: ${val}`;
+            }
+
+            // 3. Selective Quoting for specific keys
+            const keyMatch = line.match(/^(\s*-?\s*)(name|description|displayName|type|source|utter|id):\s+(.+)$/);
+            if (keyMatch) {
+                const [_, prefix, key, value] = keyMatch;
                 const trimmedValue = value.trim();
 
-                // If it's already double quoted properly (starts and ends with "), leave it
-                if (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) {
-                    return line;
+                // Skip if block scalar
+                if (trimmedValue.startsWith('|') || trimmedValue.startsWith('>')) return line;
+
+                // Special Rule: ID
+                // - id: value  <-- Step ID, params says NO quotes
+                //   id: value  <-- Action ID, params says YES quotes
+                if (key === 'id') {
+                    // If prefix contains a dash, it's a list item (Step ID) -> No quotes
+                    if (prefix.includes('-')) return line;
+                    // Otherwise (Action ID) -> Quote it
                 }
 
+                // Skip if already quoted with double quotes
+                if (trimmedValue.startsWith('"') && trimmedValue.endsWith('"')) return line;
+
+                // Unwrap single quotes if present
                 let content = trimmedValue;
-
-                // If single quoted, unwrap and unescape
                 if (trimmedValue.startsWith("'") && trimmedValue.endsWith("'")) {
-                    content = trimmedValue.slice(1, -1);
-                    content = content.replace(/''/g, "'");
-                }
-                // If block scalars, ignore
-                else if (trimmedValue.startsWith('|') || trimmedValue.startsWith('>')) {
-                    return line;
+                    content = trimmedValue.slice(1, -1).replace(/''/g, "'");
                 }
 
-                // Wrap in double quotes, escaping existing double quotes
+                // Quote it
                 const escapedContent = content.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
                 return `${prefix}${key}: "${escapedContent}"`;
             }
+
             return line;
         }).join('\n');
 

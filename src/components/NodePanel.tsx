@@ -286,6 +286,22 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                         <Label>Collect</Label>
                         <Input value={formData.collect || ''} onChange={(e) => handleChange('collect', e.target.value)} />
                     </FormGroup>
+                    <FormGroup>
+                        <Label>Description</Label>
+                        <TextArea
+                            value={formData.description || ''}
+                            onChange={(e) => handleChange('description', e.target.value)}
+                            placeholder="Node description"
+                        />
+                    </FormGroup>
+                    <FormGroup>
+                        <Label>Clear Slots</Label>
+                        <Input
+                            value={formData.clear_slots || ''}
+                            onChange={(e) => handleChange('clear_slots', e.target.value)}
+                            placeholder="e.g. [slot1, slot2]"
+                        />
+                    </FormGroup>
                     <h4 style={{ marginBottom: '5px', borderTop: '1px solid #eee', paddingTop: '10px' }}>Action Details</h4>
                     <FormGroup>
                         <Label>Action ID</Label>
@@ -299,20 +315,6 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                         <TextArea
                             value={formData.action?.description || ''}
                             onChange={(e) => handleActionChange('description', e.target.value)}
-                        />
-                    </FormGroup>
-                    <FormGroup>
-                        <Label>Sets Slot</Label>
-                        <Input
-                            value={formData.action?.sets_slot || ''}
-                            onChange={(e) => handleActionChange('sets_slot', e.target.value)}
-                        />
-                    </FormGroup>
-                    <FormGroup>
-                        <Label>Clear Slots</Label>
-                        <Input
-                            value={formData.action?.clear_slots || ''}
-                            onChange={(e) => handleActionChange('clear_slots', e.target.value)}
                         />
                     </FormGroup>
                     <FormGroup>
