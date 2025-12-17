@@ -150,13 +150,39 @@ interface SlotsPanelProps {
   onUpdate: (index: number, updatedSlot: SlotDefinition) => void;
   onAdd: () => void;
   onDelete: (index: number) => void;
+  onSlotFocus: (slotName: string | null) => void;
 }
 
-export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, onDelete }) => {
+const SearchBarContainer = styled.div`
+  padding: 8px 12px;
+  background: #f0f2f5;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+`;
+
+const SearchInput = styled.input`
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 13px;
+  
+  &:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+`;
+
+export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, onDelete, onSlotFocus }) => {
+  const [searchTerm, setSearchTerm] = React.useState('');
+
   const handleFieldChange = (index: number, field: keyof SlotDefinition, value: string) => {
     const updatedSlot = { ...slots[index], [field]: value };
     onUpdate(index, updatedSlot);
   };
+
+  const filteredSlots = slots.filter(slot =>
+    slot.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <PanelContainer>
@@ -166,59 +192,85 @@ export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, 
           + Add
         </AddButton>
       </Header>
+      <SearchBarContainer>
+        <SearchInput
+          placeholder="Search slots..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </SearchBarContainer>
       <SlotsContainer>
-        {slots.length === 0 ? (
+        {filteredSlots.length === 0 ? (
           <EmptyState>
-            No slots defined.<br />
-            Click "Add" to create one.
+            {searchTerm ? (
+              <>No slots found matching "{searchTerm}"</>
+            ) : (
+              <>
+                No slots defined.<br />
+                Click "Add" to create one.
+              </>
+            )}
           </EmptyState>
         ) : (
-          slots.map((slot, index) => (
-            <SlotCard key={index}>
-              <SlotHeader>
-                <SlotName
-                  value={slot.name}
-                  onChange={(e) => handleFieldChange(index, 'name', e.target.value)}
-                  placeholder="Slot name"
-                />
-                <DeleteButton onClick={() => onDelete(index)}>
-                  ×
-                </DeleteButton>
-              </SlotHeader>
-              <FieldGroup>
-                <FieldLabel>Type</FieldLabel>
-                <FieldInput
-                  value={slot.type}
-                  onChange={(e) => handleFieldChange(index, 'type', e.target.value)}
-                  placeholder="e.g., text, list, integer"
-                />
-              </FieldGroup>
-              <FieldGroup>
-                <FieldLabel>Display Name</FieldLabel>
-                <FieldInput
-                  value={slot.displayName || ''}
-                  onChange={(e) => handleFieldChange(index, 'displayName', e.target.value)}
-                  placeholder="UI display label"
-                />
-              </FieldGroup>
-              <FieldGroup>
-                <FieldLabel>Description</FieldLabel>
-                <FieldInput
-                  value={slot.description}
-                  onChange={(e) => handleFieldChange(index, 'description', e.target.value)}
-                  placeholder="Describe this slot"
-                />
-              </FieldGroup>
-              <FieldGroup>
-                <FieldLabel>Source</FieldLabel>
-                <FieldInput
-                  value={slot.source}
-                  onChange={(e) => handleFieldChange(index, 'source', e.target.value)}
-                  placeholder="e.g., session, action, user"
-                />
-              </FieldGroup>
-            </SlotCard>
-          ))
+          filteredSlots.map((slot) => {
+            // Find original index to pass correct index to callbacks
+            const originalIndex = slots.findIndex(s => s === slot);
+            return (
+              <SlotCard
+                key={originalIndex}
+                onFocus={() => onSlotFocus(slot.name)}
+                onBlur={(e) => {
+                  // If the new focus target is not within this card, clear the focus
+                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    onSlotFocus(null);
+                  }
+                }}
+              >
+                <SlotHeader>
+                  <SlotName
+                    value={slot.name}
+                    onChange={(e) => handleFieldChange(originalIndex, 'name', e.target.value)}
+                    placeholder="Slot name"
+                  />
+                  <DeleteButton onClick={() => onDelete(originalIndex)}>
+                    ×
+                  </DeleteButton>
+                </SlotHeader>
+                <FieldGroup>
+                  <FieldLabel>Type</FieldLabel>
+                  <FieldInput
+                    value={slot.type}
+                    onChange={(e) => handleFieldChange(originalIndex, 'type', e.target.value)}
+                    placeholder="e.g., text, list, integer"
+                  />
+                </FieldGroup>
+                <FieldGroup>
+                  <FieldLabel>Display Name</FieldLabel>
+                  <FieldInput
+                    value={slot.displayName || ''}
+                    onChange={(e) => handleFieldChange(originalIndex, 'displayName', e.target.value)}
+                    placeholder="UI display label"
+                  />
+                </FieldGroup>
+                <FieldGroup>
+                  <FieldLabel>Description</FieldLabel>
+                  <FieldInput
+                    value={slot.description}
+                    onChange={(e) => handleFieldChange(originalIndex, 'description', e.target.value)}
+                    placeholder="Describe this slot"
+                  />
+                </FieldGroup>
+                <FieldGroup>
+                  <FieldLabel>Source</FieldLabel>
+                  <FieldInput
+                    value={slot.source}
+                    onChange={(e) => handleFieldChange(originalIndex, 'source', e.target.value)}
+                    placeholder="e.g., session, action, user"
+                  />
+                </FieldGroup>
+              </SlotCard>
+            );
+          })
         )}
       </SlotsContainer>
     </PanelContainer>

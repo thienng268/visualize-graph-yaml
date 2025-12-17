@@ -106,6 +106,8 @@ export const FlowEditor: React.FC = () => {
         selectedSlot: ''
     });
     // Filter Logic Effect
+    const [editingSlot, setEditingSlot] = useState<string | null>(null);
+
     React.useEffect(() => {
         setNodes((nds) => nds.map((node) => {
             const data = node.data;
@@ -126,143 +128,132 @@ export const FlowEditor: React.FC = () => {
                 };
             }
             // 2. Filter Highlighting (Border Overrides)
-            // Priority: Selected Slot > Rejections
+            // Priority: Editing Slot (Green) > Selected Slot (Orange) > Rejections (Purple) (Actually we want highest priority last to check override, or use early return logic?)
+            // Let's use separate flags.
+
+            let isHighlighted = false;
+            let highlightColor = '';
 
             // Rejections (Purple)
             if (filters.rejections && data.rejections && Array.isArray(data.rejections) && data.rejections.length > 0) {
-                style = {
-                    ...style,
-                    borderWidth: '3px',
-                    borderColor: '#722ed1', // Purple
-                    boxShadow: '0 0 10px rgba(114, 46, 209, 0.6)'
-                };
+                isHighlighted = true;
+                highlightColor = '#722ed1'; // Purple
             }
 
-            // Selected Slot Highlighting (Cyan/Blue)
-            if (filters.selectedSlot) {
-                const slot = filters.selectedSlot;
-                let matchesSlot = false;
-
+            // Helper to check slot match
+            const checkSlotMatch = (slotName: string) => {
+                let matches = false;
                 // Check 'collect'
-                if (data.collect === slot) matchesSlot = true;
+                if (data.collect === slotName) matches = true;
 
-                // Check 'sets_slot' or 'set_slot' (can be string or in action)
-                if (data.sets_slot === slot || data.set_slot === slot) matchesSlot = true;
+                // Check 'sets_slot' or 'set_slot'
+                if (data.sets_slot === slotName || data.set_slot === slotName) matches = true;
                 if (data.action) {
-                    if (data.action.sets_slot === slot || data.action.set_slot === slot) matchesSlot = true;
+                    if (data.action.sets_slot === slotName || data.action.set_slot === slotName) matches = true;
                 }
 
-                // Check 'clear_slots' (can be string or array)
+                // Check 'clear_slots'
                 const checkClear = (val: any) => {
-                    if (typeof val === 'string') return val === slot;
-                    if (Array.isArray(val)) return val.includes(slot);
+                    if (typeof val === 'string') return val === slotName;
+                    if (Array.isArray(val)) return val.includes(slotName);
                     return false;
                 };
-
-                if (checkClear(data.clear_slots) || checkClear(data.clear_slot)) matchesSlot = true;
-                if (data.action && (checkClear(data.action.clear_slots) || checkClear(data.action.clear_slot))) matchesSlot = true;
+                if (checkClear(data.clear_slots) || checkClear(data.clear_slot)) matches = true;
+                if (data.action && (checkClear(data.action.clear_slots) || checkClear(data.action.clear_slot))) matches = true;
 
                 // Check next transitions for clear_slots
                 if (data.next && Array.isArray(data.next)) {
                     if (data.next.some((rule: any) => checkClear(rule.clear_slots) || checkClear(rule.clear_slot))) {
-                        matchesSlot = true;
+                        matches = true;
                     }
                 }
 
                 // Check for slot usage in utterances (e.g., "Hello {slot_name}")
-                const slotPattern = `{${slot}}`;
+                const slotPattern = `{${slotName}}`;
                 if (data.utter && typeof data.utter === 'string' && data.utter.includes(slotPattern)) {
-                    matchesSlot = true;
+                    matches = true;
                 }
                 if (data.action && data.action.utter && typeof data.action.utter === 'string' && data.action.utter.includes(slotPattern)) {
-                    matchesSlot = true;
+                    matches = true;
                 }
+                return matches;
+            }
 
-                if (matchesSlot) {
-                    style = {
-                        ...style,
-                        borderWidth: '3px',
-                        borderColor: '#fa8c16', // Orange as requested
-                        boxShadow: '0 0 10px rgba(250, 140, 22, 0.6)'
-                    };
+            // Selected Slot Highlighting (Orange) - overrides Rejections
+            if (filters.selectedSlot) {
+                if (checkSlotMatch(filters.selectedSlot)) {
+                    isHighlighted = true;
+                    highlightColor = '#fa8c16'; // Orange
                 }
             }
-            return { ...node, style };
-        }));
-        setEdges((eds) => eds.map((edge) => {
-            let style = edge.style ? { ...edge.style } : { stroke: '#333', strokeWidth: 2 };
-            let markerEnd = edge.markerEnd;
-            // Reset to default if not highlighted
-            // Default styling is usually { stroke: '#333', strokeWidth: 2 } defined in transform
-            // But we need to be careful not to override rejection red edges
-            // We can check if it was previously highlighted and reset, or just rebuild base style
-            // Simpler: Set base style first. 
-            // Rejection edges are red. Normal are #333.
-            // We can infer base color from the edge type or label? 
-            // transform.ts sets markerEnd color.
-            // NOTE: To safely toggle highlight without losing base style (like rejection red),
-            // we should ideally store base style. But for now, let's assume standard behavior.
-            let isHighlighted = false;
-            // Edge highlighting: if selectedSlot is cleared in edge
-            if (filters.selectedSlot) {
-                const slot = filters.selectedSlot;
-                const checkClear = (val: any) => {
-                    if (typeof val === 'string') return val === slot;
-                    if (Array.isArray(val)) return val.includes(slot);
-                    return false;
-                };
 
-                if (edge.data && (checkClear(edge.data.clear_slots) || checkClear(edge.data.clear_slot))) {
+            // Editing Slot Highlighting (Green) - overrides everything
+            if (editingSlot) {
+                if (checkSlotMatch(editingSlot)) {
                     isHighlighted = true;
+                    highlightColor = '#52c41a'; // Green
                 }
             }
 
             if (isHighlighted) {
                 style = {
                     ...style,
-                    stroke: '#fa8c16', // Orange
+                    borderWidth: '3px',
+                    borderColor: highlightColor,
+                    boxShadow: `0 0 10px ${highlightColor}99` // Add some opacity to shadow
+                };
+            }
+
+            return { ...node, style };
+        }));
+        setEdges((eds) => eds.map((edge) => {
+            let style = edge.style ? { ...edge.style } : { stroke: '#333', strokeWidth: 2 };
+            let markerEnd = edge.markerEnd;
+            let isHighlighted = false;
+            let highlightColor = '';
+
+            const checkSlotMatchEdge = (slotName: string) => {
+                const checkClear = (val: any) => {
+                    if (typeof val === 'string') return val === slotName;
+                    if (Array.isArray(val)) return val.includes(slotName);
+                    return false;
+                };
+                if (edge.data && (checkClear(edge.data.clear_slots) || checkClear(edge.data.clear_slot))) {
+                    return true;
+                }
+                return false;
+            }
+
+            if (filters.selectedSlot && checkSlotMatchEdge(filters.selectedSlot)) {
+                isHighlighted = true;
+                highlightColor = '#fa8c16'; // Orange
+            }
+
+            if (editingSlot && checkSlotMatchEdge(editingSlot)) {
+                isHighlighted = true;
+                highlightColor = '#52c41a'; // Green
+            }
+
+            if (isHighlighted) {
+                style = {
+                    ...style,
+                    stroke: highlightColor,
                     strokeWidth: 3
                 };
                 markerEnd = {
                     type: MarkerType.ArrowClosed,
-                    color: '#fa8c16' // Orange
+                    color: highlightColor
                 };
-                // Force animation for highlighted edges? User didn't ask, but good for visibility. 
-                // User said "lights up". Color is sufficient.
             } else {
-                // Revert to original. 
-                // If it was red (rejection), it should stay red?
-                // transform.ts sets stroke in style.
-                // This part is tricky if we don't know the original color.
-                // However, we are re-mapping based on current state.
-                // If we modify 'style' in place, we lose original.
-                // Correct way: The 'edges' state holds the source of truth. 
-                // But we are modifying it here! 
-                // Actually, transform.ts creates the initial edges.
-                // We should probably re-run formatting on the *original* edges, but we only have current edges.
-                // Fix: Access the *original* color if possible. 
-                // Or, if we see it is NOT highlighted, we set it back to default or red?
-                // Let's assume default for now. Rejection edges have specific logic?
-                // Rejection edges in transform.ts are just edges with empty label? 
-                // No, they are regular edges now. 
-                // User said "Rejection: if condition" previously, then hidden.
-                // Let's rely on standard style reset to #333 or red if we can detect it.
-                // Actually, simple way: properties panel might save data to edge using updateData.
-                // To avoid complexity: simple check. If currently yellow (#faad14), reset to #333.
-                // But wait, rejections might be red?
-                // transform logic for rejection: addEdge(nextTarget, '', undefined, ...) -> undefined style -> default #333.
-                // Wait, rejection edges were red before? User reverted them to normal.
-                // "Modified (Latest): Reverted the color to the default black/grey"
-                // So all edges are #333 by default! Great.
-                if (style.stroke === '#faad14') {
+                if (style.stroke === '#fa8c16' || style.stroke === '#52c41a') {
                     style.stroke = '#333';
                     style.strokeWidth = 2;
-                    if (typeof markerEnd === 'object') markerEnd.color = '#000'; // Default arrow color
+                    if (typeof markerEnd === 'object') markerEnd.color = '#000';
                 }
             }
             return { ...edge, style, markerEnd };
         }));
-    }, [filters, nodes.length]); // Edges length should also be dependency?
+    }, [filters, editingSlot, nodes.length]);
     // Added edges.length dependency or just filters?
     // If we load new YAML, setEdges is called, overwriting state. 
     // Effect runs because nodes.length likely changes. Good.
@@ -566,6 +557,7 @@ export const FlowEditor: React.FC = () => {
                     onUpdate={onUpdateSlot}
                     onAdd={onAddSlot}
                     onDelete={onDeleteSlot}
+                    onSlotFocus={setEditingSlot}
                 />
                 <PropertiesPanel
                     selectedItem={selectedItem}
