@@ -235,7 +235,23 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; 
     const slots: SlotDefinition[] = [];
     if (typeof data === 'object' && data !== null && data.slots) {
         const slotsObj = data.slots;
-        if (typeof slotsObj === 'object' && !Array.isArray(slotsObj)) {
+
+        // Case 1: Slots is an Array of Objects (User Request)
+        if (Array.isArray(slotsObj)) {
+            slotsObj.forEach(slot => {
+                if (typeof slot === 'object' && slot !== null && slot.name) {
+                    slots.push({
+                        name: slot.name,
+                        type: slot.type || 'text',
+                        displayName: slot.displayName || '',
+                        description: slot.description || '',
+                        source: slot.source || ''
+                    });
+                }
+            });
+        }
+        // Case 2: Slots is an Object Map (Legacy / Previous Format)
+        else if (typeof slotsObj === 'object') {
             Object.entries(slotsObj).forEach(([name, config]: [string, any]) => {
                 if (typeof config === 'object' && config !== null) {
                     slots.push({
