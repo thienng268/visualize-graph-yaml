@@ -56,9 +56,9 @@ interface PropertiesPanelProps {
     flowMetadata?: {
         name: string;
         description: string;
-        rootKey: string;
+        id?: string;
     };
-    onMetadataUpdate?: (meta: { name?: string; description?: string; rootKey?: string }) => void;
+    onMetadataUpdate?: (meta: { name?: string; description?: string; id?: string }) => void;
     isFlowInfoOpen?: boolean;
     nodes?: any[];
     edges?: any[];
@@ -181,11 +181,11 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                 <CloseButton onClick={onClose}>&times;</CloseButton>
                 <Title>Flow Details</Title>
                 <FormGroup>
-                    <Label>Root Key</Label>
+                    <Label>Flow ID</Label>
                     <Input
-                        value={flowMetadata.rootKey}
-                        onChange={(e) => onMetadataUpdate({ rootKey: e.target.value })}
-                        placeholder="e.g. flow_khoa_the"
+                        value={flowMetadata.id || ''}
+                        onChange={(e) => onMetadataUpdate({ id: e.target.value })}
+                        placeholder="e.g. flow_id"
                     />
                 </FormGroup>
                 <FormGroup>

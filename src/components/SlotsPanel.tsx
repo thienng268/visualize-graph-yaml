@@ -151,7 +151,27 @@ interface SlotsPanelProps {
   onAdd: () => void;
   onDelete: (index: number) => void;
   onSlotFocus: (slotName: string | null) => void;
+  activeSlot: string | null;
 }
+
+const SelectButton = styled.button<{ isActive: boolean }>`
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s;
+  background-color: ${props => props.isActive ? '#fff1f0' : '#f6ffed'};
+  color: ${props => props.isActive ? '#cf1322' : '#389e0d'};
+  border: 1px solid ${props => props.isActive ? '#ffa39e' : '#b7eb8f'};
+
+  &:hover {
+    background-color: ${props => props.isActive ? '#ffccc7' : '#d9f7be'};
+  }
+`;
 
 const SearchBarContainer = styled.div`
   padding: 8px 12px;
@@ -172,7 +192,7 @@ const SearchInput = styled.input`
   }
 `;
 
-export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, onDelete, onSlotFocus }) => {
+export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, onDelete, onSlotFocus, activeSlot }) => {
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const handleFieldChange = (index: number, field: keyof SlotDefinition, value: string) => {
@@ -213,18 +233,11 @@ export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, 
           </EmptyState>
         ) : (
           filteredSlots.map((slot) => {
-            // Find original index to pass correct index to callbacks
             const originalIndex = slots.findIndex(s => s === slot);
+            const isActive = activeSlot === slot.name;
             return (
               <SlotCard
                 key={originalIndex}
-                onFocus={() => onSlotFocus(slot.name)}
-                onBlur={(e) => {
-                  // If the new focus target is not within this card, clear the focus
-                  if (!e.currentTarget.contains(e.relatedTarget as Node)) {
-                    onSlotFocus(null);
-                  }
-                }}
               >
                 <SlotHeader>
                   <SlotName
@@ -268,6 +281,12 @@ export const SlotsPanel: React.FC<SlotsPanelProps> = ({ slots, onUpdate, onAdd, 
                     placeholder="e.g., session, action, user"
                   />
                 </FieldGroup>
+                <SelectButton
+                  isActive={isActive}
+                  onClick={() => onSlotFocus(isActive ? null : slot.name)}
+                >
+                  {isActive ? 'Unselect' : 'Select'}
+                </SelectButton>
               </SlotCard>
             );
           })

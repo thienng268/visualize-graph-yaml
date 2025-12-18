@@ -207,28 +207,19 @@ export const transformYamlToFlow = (data: any): { nodes: Node[]; edges: Edge[]; 
         }
     });
 
-    // Extract Metadata (Name, Description, Root Key)
-    const metadata = {
+    // Extract Metadata (Name, Description, ID)
+    // Assumes flat structure as per latest request
+    const metadata: any = {
         name: '',
         description: '',
-        rootKey: 'flow' // Default
+        // rootKey removed
+        id: ''
     };
 
     if (typeof data === 'object' && data !== null && !Array.isArray(data)) {
-        // Check for root key wrapping steps
-        // Case 1: Root key is not 'steps' but contains 'steps'
-        const keys = Object.keys(data);
-        for (const key of keys) {
-            if (key !== 'steps' && data[key] && Array.isArray(data[key].steps)) {
-                metadata.rootKey = key;
-                metadata.name = data[key].name || '';
-                metadata.description = data[key].description || '';
-                break;
-            }
-            // Case 2: data has name/description at root (flat)
-            if (key === 'name' && typeof data[key] === 'string') metadata.name = data[key];
-            if (key === 'description' && typeof data[key] === 'string') metadata.description = data[key];
-        }
+        if (typeof data.name === 'string') metadata.name = data.name;
+        if (typeof data.description === 'string') metadata.description = data.description;
+        if (typeof data.id === 'string') metadata.id = data.id;
     }
 
     // Extract Slots

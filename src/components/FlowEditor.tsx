@@ -284,7 +284,7 @@ export const FlowEditor: React.FC = () => {
     const [flowMetadata, setFlowMetadata] = useState({
         name: '',
         description: '',
-        rootKey: 'flow'
+        id: ''
     });
     // Slots State
     const [slots, setSlots] = useState<SlotDefinition[]>([]);
@@ -307,7 +307,7 @@ export const FlowEditor: React.FC = () => {
             console.log('Transformed Edges:', layoutedEdges);
             console.log('Extracted Metadata:', metadata);
             console.log('Extracted Slots:', extractedSlots);
-            setFlowMetadata(metadata || { name: '', description: '', rootKey: 'flow' });
+            setFlowMetadata(metadata || { name: '', description: '', id: '' });
             setSlots(extractedSlots || []);
             setNodes(layoutedNodes);
             setEdges(layoutedEdges);
@@ -373,26 +373,17 @@ export const FlowEditor: React.FC = () => {
         const steps = hasSlots ? (flowData as any).steps : flowData;
         const slotsData = hasSlots ? (flowData as any).slots : undefined;
 
-        if (flowMetadata.rootKey && flowMetadata.rootKey !== 'flow') {
-            validFlowData = {
-                [flowMetadata.rootKey]: {
-                    name: flowMetadata.name,
-                    description: flowMetadata.description,
-                    ...(slotsData ? { slots: slotsData } : {}),
-                    steps
-                }
-            };
-        } else {
-            // Default wrapping
-            validFlowData = {
-                [flowMetadata.rootKey || 'flow']: {
-                    name: flowMetadata.name,
-                    description: flowMetadata.description,
-                    ...(slotsData ? { slots: slotsData } : {}),
-                    steps
-                }
-            };
-        }
+        // Flat export without root key wrapper
+        const flowContent: any = {
+            id: flowMetadata.id,
+            name: flowMetadata.name,
+            description: flowMetadata.description,
+            ...(slotsData ? { slots: slotsData } : {}),
+            steps
+        };
+        if (!flowContent.id) delete flowContent.id;
+
+        validFlowData = flowContent;
 
         // Dump without global double quotes to keep 'then', 'else', and step IDs clean
         const yamlString = yaml.dump(validFlowData, {
@@ -432,11 +423,16 @@ export const FlowEditor: React.FC = () => {
                 if (trimmedValue.startsWith('|') || trimmedValue.startsWith('>')) return line;
 
                 // Special Rule: ID
-                // - id: value  <-- Step ID, params says NO quotes
-                //   id: value  <-- Action ID, params says YES quotes
+                // - id: value  <-- Step ID (List item) -> No quotes
+                //   id: value  <-- Flow ID (Root/Metadata) -> No quotes (Indent < 6)
+                //       id: value <-- Action ID (Nested) -> Quotes (Indent >= 6)
                 if (key === 'id') {
-                    // If prefix contains a dash, it's a list item (Step ID) -> No quotes
+                    // List item (Step ID) -> No quotes
                     if (prefix.includes('-')) return line;
+
+                    // Root/Flow ID (Low indentation) -> No quotes
+                    if (prefix.length < 6) return line;
+
                     // Otherwise (Action ID) -> Quote it
                 }
 
@@ -558,6 +554,7 @@ export const FlowEditor: React.FC = () => {
                     onAdd={onAddSlot}
                     onDelete={onDeleteSlot}
                     onSlotFocus={setEditingSlot}
+                    activeSlot={editingSlot}
                 />
                 <PropertiesPanel
                     selectedItem={selectedItem}
