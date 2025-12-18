@@ -360,7 +360,7 @@ export const FlowEditor: React.FC = () => {
             id,
             type: 'default',
             position: { x: 100, y: 100 },
-            data: { label: id, utter: 'New Utterance' },
+            data: { label: id, utter: '' },
         };
         setNodes((nds) => nds.concat(newNode));
     };

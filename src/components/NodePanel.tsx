@@ -15,6 +15,19 @@ const SidePanel = styled.div`
   z-index: 1000;
   display: flex;
   flex-direction: column;
+  display: flex;
+  flex-direction: column;
+  /* padding-bottom: 80px; Removed padding, using Spacer instead */
+`;
+const Spacer = styled.div`
+  height: 100px;
+  flex-shrink: 0;
+`;
+const CheckboxGroup = styled.div`
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 `;
 const FormGroup = styled.div`
   margin-bottom: 15px;
@@ -86,12 +99,23 @@ const InsertSelect = styled.select`
 `;
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, itemType, onUpdate, onDelete, onClose, flowMetadata, onMetadataUpdate, isFlowInfoOpen, nodes = [], edges = [] }) => {
     const [formData, setFormData] = useState<any>(null);
+    const [showCollectSection, setShowCollectSection] = useState(false);
+    const [showActionSection, setShowActionSection] = useState(false);
     const utterRef = useRef<HTMLTextAreaElement>(null);
     const lastCursorPos = useRef<number | null>(null);
     useEffect(() => {
         if (selectedItem) {
             if (itemType === 'node') {
                 setFormData(selectedItem.data);
+
+                // Initialize toggles based on content
+                const data = selectedItem.data;
+                const hasAction = !!(data.action?.id || data.action?.description || data.action?.utter || data.action?.sets_slot);
+                const hasCollect = !!(data.collect || data.clear_slots);
+
+                setShowCollectSection(hasCollect);
+                setShowActionSection(hasAction);
+
                 lastCursorPos.current = null; // Reset cursor tracking on node change
             } else {
                 setFormData({
@@ -247,13 +271,9 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
     }
 
     // Determine visibility
-    const hasAction = !!(formData.action?.id || formData.action?.description || formData.action?.utter || formData.action?.sets_slot);
-    const hasCollect = !!(formData.collect || formData.clear_slots);
+    // const hasAction = ... (removed auto-logic)
+    // const hasCollect = ... (removed auto-logic)
 
-    // Show sections if they exist, or if the node is empty (neither exists) so the user can choose.
-    // Also show if both exist (mixed state) to allow editing/cleanup.
-    const showCollect = hasCollect || !hasAction;
-    const showAction = hasAction || !hasCollect;
 
     return (
         <SidePanel>
@@ -290,6 +310,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                             onClick={trackCursor}
                             onKeyUp={trackCursor}
                             onBlur={trackCursor}
+                            placeholder="User says..."
                         />
                     </FormGroup>
 
@@ -302,8 +323,34 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                         />
                     </FormGroup>
 
-                    {showCollect && (
-                        <>
+                    <FormGroup>
+                        <Label>Rejections (JSON)</Label>
+                        <TextArea
+                            value={typeof formData.rejections === 'string' ? formData.rejections : JSON.stringify(formData.rejections || [], null, 2)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                try {
+                                    const parsed = JSON.parse(val);
+                                    handleChange('rejections', parsed);
+                                } catch {
+                                    handleChange('rejections', val);
+                                }
+                            }}
+                        />
+                    </FormGroup>
+
+                    <CheckboxGroup>
+                        <input
+                            type="checkbox"
+                            id="showCollect"
+                            checked={showCollectSection}
+                            onChange={(e) => setShowCollectSection(e.target.checked)}
+                        />
+                        <Label htmlFor="showCollect" style={{ marginBottom: 0 }}>Collect & Clear Slots</Label>
+                    </CheckboxGroup>
+
+                    {showCollectSection && (
+                        <div style={{ paddingLeft: '10px', borderLeft: '2px solid #eee', marginBottom: '15px' }}>
                             <FormGroup>
                                 <Label>Collect</Label>
                                 <Input value={formData.collect || ''} onChange={(e) => handleChange('collect', e.target.value)} />
@@ -316,12 +363,21 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                                     placeholder="e.g. [slot1, slot2]"
                                 />
                             </FormGroup>
-                        </>
+                        </div>
                     )}
 
-                    {showAction && (
-                        <>
-                            <h4 style={{ marginBottom: '5px', borderTop: '1px solid #eee', paddingTop: '10px' }}>Action Details</h4>
+                    <CheckboxGroup>
+                        <input
+                            type="checkbox"
+                            id="showAction"
+                            checked={showActionSection}
+                            onChange={(e) => setShowActionSection(e.target.checked)}
+                        />
+                        <Label htmlFor="showAction" style={{ marginBottom: 0 }}>Action Details</Label>
+                    </CheckboxGroup>
+
+                    {showActionSection && (
+                        <div style={{ paddingLeft: '10px', borderLeft: '2px solid #eee' }}>
                             <FormGroup>
                                 <Label>Action ID</Label>
                                 <Input
@@ -350,25 +406,8 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                                     onChange={(e) => handleActionChange('sets_slot', e.target.value)}
                                 />
                             </FormGroup>
-                        </>
+                        </div>
                     )}
-
-                    <FormGroup>
-                        <Label>Rejections (JSON)</Label>
-                        <TextArea
-                            value={typeof formData.rejections === 'string' ? formData.rejections : JSON.stringify(formData.rejections || [], null, 2)}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                // Try to parse to object if possible, otherwise keep as string until valid
-                                try {
-                                    const parsed = JSON.parse(val);
-                                    handleChange('rejections', parsed);
-                                } catch {
-                                    handleChange('rejections', val);
-                                }
-                            }}
-                        />
-                    </FormGroup>
                 </>
             ) : (
                 // Edge Form
@@ -406,6 +445,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             <DeleteButton onClick={onDelete}>
                 Delete {itemType === 'node' ? 'Node' : 'Edge'}
             </DeleteButton>
+            <Spacer />
         </SidePanel>
     );
 };
