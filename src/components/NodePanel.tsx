@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import styled from 'styled-components';
+import type { SlotDefinition } from '../utils/transform';
 const SidePanel = styled.div`
   position: fixed;
   right: 0;
@@ -60,6 +61,41 @@ const CloseButton = styled.button`
   font-size: 1.2em;
   cursor: pointer;
 `;
+
+const AutocompleteList = styled.ul`
+  position: absolute;
+  z-index: 1001;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 200px;
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0 0;
+`;
+
+const AutocompleteItem = styled.li<{ active?: boolean }>`
+  padding: 8px 12px;
+  cursor: pointer;
+  background: ${props => props.active ? '#e6f7ff' : 'transparent'};
+  font-size: 0.9em;
+  border-bottom: 1px solid #f0f0f0;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  &:hover {
+    background: #f5f5f5;
+  }
+  
+  strong {
+    color: #1890ff;
+  }
+`;
 interface PropertiesPanelProps {
     selectedItem: any | null;
     itemType: 'node' | 'edge' | null;
@@ -75,6 +111,7 @@ interface PropertiesPanelProps {
     isFlowInfoOpen?: boolean;
     nodes?: any[];
     edges?: any[];
+    slots?: SlotDefinition[];
 }
 const DeleteButton = styled.button`
     background-color: #ff4d4f;
@@ -89,20 +126,22 @@ const DeleteButton = styled.button`
         background-color: #ff7875;
     }
 `;
-const InsertSelect = styled.select`
-    margin-left: 10px;
-    padding: 4px;
-    border-radius: 4px;
-    border: 1px solid #ddd;
-    font-size: 0.9em;
-    width: 200px;
-`;
-export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, itemType, onUpdate, onDelete, onClose, flowMetadata, onMetadataUpdate, isFlowInfoOpen, nodes = [], edges = [] }) => {
+
+export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, itemType, onUpdate, onDelete, onClose, flowMetadata, onMetadataUpdate, isFlowInfoOpen, nodes = [], edges = [], slots = [] }) => {
     const [formData, setFormData] = useState<any>(null);
     const [showCollectSection, setShowCollectSection] = useState(false);
     const [showActionSection, setShowActionSection] = useState(false);
     const utterRef = useRef<HTMLTextAreaElement>(null);
+    const actionUtterRef = useRef<HTMLTextAreaElement>(null);
     const lastCursorPos = useRef<number | null>(null);
+
+    // Autocomplete State
+    const [autocomplete, setAutocomplete] = useState<{
+        show: boolean;
+        query: string;
+        field: 'utter' | 'action_utter';
+        cursorPos: number; // Position where '/' was typed
+    } | null>(null);
     useEffect(() => {
         if (selectedItem) {
             if (itemType === 'node') {
@@ -132,71 +171,88 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
             setFormData(null); // Reset when nothing selected
         }
     }, [selectedItem, itemType]);
-    // Calculate available variables from ancestors
-    const availableVariables = useMemo(() => {
-        if (!selectedItem || itemType !== 'node' || !nodes.length) return [];
-        const ancestors = new Set<string>();
-        const queue = [selectedItem.id];
-        const visited = new Set<string>();
-        const variables = new Set<string>();
-        // BFS backwards to find all ancestors
-        while (queue.length > 0) {
-            const currentId = queue.shift()!;
-            if (visited.has(currentId)) continue;
-            visited.add(currentId);
-            // Find incoming edges to current node
-            const incomingEdges = edges.filter(e => e.target === currentId);
-            for (const edge of incomingEdges) {
-                if (!visited.has(edge.source)) {
-                    queue.push(edge.source);
-                    ancestors.add(edge.source);
-                }
-            }
+
+    const trackCursor = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+        const target = e.currentTarget;
+        lastCursorPos.current = target.selectionStart;
+    };
+
+
+    // Autocomplete Logic
+    const handleUtteranceChange = (field: 'utter' | 'action_utter', value: string) => {
+        // Update form data first
+        if (field === 'utter') {
+            handleNodeChange('utter', value);
+        } else {
+            handleActionChange('utter', value);
         }
-        // Collect variables from ancestors
-        ancestors.forEach(ancestorId => {
-            const node = nodes.find(n => n.id === ancestorId);
-            if (node && node.data && node.data.collect) {
-                variables.add(node.data.collect);
+
+        // Check for Autocomplete Trigger '/'
+        const targetRef = field === 'utter' ? utterRef.current : actionUtterRef.current;
+        if (!targetRef) return;
+
+        const cursorPos = targetRef.selectionStart;
+        const textBeforeCursor = value.slice(0, cursorPos);
+
+        // Match '/' followed by non-space characters at the end of textBeforeCursor
+        const match = textBeforeCursor.match(/\/([a-zA-Z0-9_]*)$/);
+
+        if (match) {
+            setAutocomplete({
+                show: true,
+                query: match[1],
+                field: field,
+                cursorPos: cursorPos
+            });
+        } else {
+            setAutocomplete(null);
+        }
+    };
+
+    const insertSlot = (slotName: string) => {
+        if (!autocomplete || !formData) return;
+
+        const field = autocomplete.field;
+        const currentText = field === 'utter' ? (formData.utter || '') : (formData.action?.utter || '');
+        const targetRef = field === 'utter' ? utterRef.current : actionUtterRef.current;
+
+        // Calculate substitution range
+        // We know the pattern ends at the cursor. 
+        // We need to find where '/' is relative to cursor.
+        // The query length tells us how far back '/' is.
+        // query = "ab" -> length 2. "/" is at cursor - 2 - 1.
+
+        // Actually, we captured regex match.
+        // let's rely on valid substitution: regex match means .../{query} is just before cursor
+
+        const replaceLength = autocomplete.query.length + 1; // +1 for '/'
+        const insertPos = targetRef?.selectionStart || currentText.length;
+        const startPos = insertPos - replaceLength;
+
+        const newText = currentText.slice(0, startPos) + `{${slotName}}` + currentText.slice(insertPos);
+
+        if (field === 'utter') {
+            handleNodeChange('utter', newText);
+        } else {
+            handleActionChange('utter', newText);
+        }
+
+        setAutocomplete(null);
+
+        // Restore focus and move cursor
+        requestAnimationFrame(() => {
+            if (targetRef) {
+                targetRef.focus();
+                const newCursorPos = startPos + slotName.length + 2; // {} length = 2
+                targetRef.setSelectionRange(newCursorPos, newCursorPos);
             }
         });
-        return Array.from(variables);
-    }, [selectedItem, itemType, nodes, edges]);
-    const trackCursor = () => {
-        if (utterRef.current) {
-            lastCursorPos.current = utterRef.current.selectionStart;
-        }
     };
-    const handleInsertVariable = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const variable = e.target.value;
-        if (!variable) return;
 
-        // Do nothing if user hasn't clicked in the textarea
-        if (lastCursorPos.current === null) {
-            e.target.value = '';
-            return;
-        }
-
-        if (formData) {
-            const text = formData.utter || '';
-            const insertion = `{${variable}}`;
-            const pos = lastCursorPos.current;
-            const newText = text.substring(0, pos) + insertion + text.substring(pos);
-            const updated = { ...formData, utter: newText };
-            setFormData(updated);
-            onUpdate(selectedItem.id, updated, 'node');
-            // Update cursor position
-            lastCursorPos.current = pos + insertion.length;
-            // Focus and set cursor
-            requestAnimationFrame(() => {
-                if (utterRef.current) {
-                    utterRef.current.focus();
-                    utterRef.current.setSelectionRange(lastCursorPos.current!, lastCursorPos.current!);
-                }
-            });
-        }
-        e.target.value = '';
-    };
+    const filteredSlots = useMemo(() => {
+        if (!autocomplete || !autocomplete.show) return [];
+        return slots.filter(s => s.name.toLowerCase().includes(autocomplete.query.toLowerCase()));
+    }, [slots, autocomplete]);
     // If no item selected, show Flow Details if metadata provided
     if (!selectedItem) {
         if (!isFlowInfoOpen || !flowMetadata || !onMetadataUpdate) return null;
@@ -290,28 +346,32 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                         />
                     </FormGroup>
                     {/* Top-level Utterance */}
-                    <FormGroup>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
-                            <Label style={{ marginBottom: 0 }}>Utterance (Main)</Label>
-                            {availableVariables.length > 0 && (
-                                <InsertSelect onChange={handleInsertVariable} defaultValue="">
-                                    <option value="" disabled>Insert Variable...</option>
-                                    {availableVariables.map(v => (
-                                        <option key={v} value={v}>{v}</option>
-                                    ))}
-                                </InsertSelect>
-                            )}
-                        </div>
+                    <FormGroup style={{ position: 'relative' }}>
+                        <Label>Utterance (Main)</Label>
                         <TextArea
                             ref={utterRef}
                             value={formData.utter || ''}
-                            onChange={(e) => handleNodeChange('utter', e.target.value)}
+                            onChange={(e) => handleUtteranceChange('utter', e.target.value)}
                             onSelect={trackCursor}
                             onClick={trackCursor}
                             onKeyUp={trackCursor}
                             onBlur={trackCursor}
-                            placeholder="User says..."
+                            placeholder="User says... (Type / for autofill slot)"
                         />
+                        {autocomplete?.show && autocomplete.field === 'utter' && (
+                            <AutocompleteList>
+                                {filteredSlots.length > 0 ? filteredSlots.map(slot => (
+                                    <AutocompleteItem key={slot.name} onMouseDown={(e) => {
+                                        e.preventDefault(); // Prevent blur
+                                        insertSlot(slot.name);
+                                    }}>
+                                        {slot.name}
+                                    </AutocompleteItem>
+                                )) : (
+                                    <AutocompleteItem style={{ color: '#999', cursor: 'default' }}>No slots found</AutocompleteItem>
+                                )}
+                            </AutocompleteList>
+                        )}
                     </FormGroup>
 
                     <FormGroup>
@@ -392,12 +452,28 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ selectedItem, 
                                     onChange={(e) => handleActionChange('description', e.target.value)}
                                 />
                             </FormGroup>
-                            <FormGroup>
+                            <FormGroup style={{ position: 'relative' }}>
                                 <Label>Action Utterance</Label>
                                 <TextArea
+                                    ref={actionUtterRef}
                                     value={formData.action?.utter || ''}
-                                    onChange={(e) => handleActionChange('utter', e.target.value)}
+                                    onChange={(e) => handleUtteranceChange('action_utter', e.target.value)}
+                                    placeholder="Type / for autocomplete"
                                 />
+                                {autocomplete?.show && autocomplete.field === 'action_utter' && (
+                                    <AutocompleteList>
+                                        {filteredSlots.length > 0 ? filteredSlots.map(slot => (
+                                            <AutocompleteItem key={slot.name} onMouseDown={(e) => {
+                                                e.preventDefault(); // Prevent blur
+                                                insertSlot(slot.name);
+                                            }}>
+                                                {slot.name}
+                                            </AutocompleteItem>
+                                        )) : (
+                                            <AutocompleteItem style={{ color: '#999', cursor: 'default' }}>No slots found</AutocompleteItem>
+                                        )}
+                                    </AutocompleteList>
+                                )}
                             </FormGroup>
                             <FormGroup>
                                 <Label>Set Slot</Label>

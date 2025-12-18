@@ -570,6 +570,7 @@ export const FlowEditor: React.FC = () => {
                     isFlowInfoOpen={isFlowInfoOpen}
                     nodes={nodes}
                     edges={edges}
+                    slots={slots}
                 />
             </EditorContainer>
             <FloatingControls>
