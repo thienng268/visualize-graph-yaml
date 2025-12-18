@@ -128,8 +128,6 @@ export const FlowEditor: React.FC = () => {
                 };
             }
             // 2. Filter Highlighting (Border Overrides)
-            // Priority: Editing Slot (Green) > Selected Slot (Orange) > Rejections (Purple) (Actually we want highest priority last to check override, or use early return logic?)
-            // Let's use separate flags.
 
             let isHighlighted = false;
             let highlightColor = '';
@@ -140,56 +138,61 @@ export const FlowEditor: React.FC = () => {
                 highlightColor = '#722ed1'; // Purple
             }
 
-            // Helper to check slot match
-            const checkSlotMatch = (slotName: string) => {
-                let matches = false;
-                // Check 'collect'
-                if (data.collect === slotName) matches = true;
-
-                // Check 'sets_slot' or 'set_slot'
-                if (data.sets_slot === slotName || data.set_slot === slotName) matches = true;
+            // Helper to check slot match and return type
+            // Returns: 'set' | 'clear' | 'utter' | null
+            // Priority: set > clear > utter
+            const getSlotUsageType = (slotName: string): 'set' | 'clear' | 'utter' | null => {
+                // Check 'collect' / 'sets_slot' (Blue)
+                if (data.collect === slotName) return 'set';
+                if (data.sets_slot === slotName || data.set_slot === slotName) return 'set';
                 if (data.action) {
-                    if (data.action.sets_slot === slotName || data.action.set_slot === slotName) matches = true;
+                    if (data.action.sets_slot === slotName || data.action.set_slot === slotName) return 'set';
                 }
 
-                // Check 'clear_slots'
+                // Check 'clear_slots' (Red)
                 const checkClear = (val: any) => {
                     if (typeof val === 'string') return val === slotName;
                     if (Array.isArray(val)) return val.includes(slotName);
                     return false;
                 };
-                if (checkClear(data.clear_slots) || checkClear(data.clear_slot)) matches = true;
-                if (data.action && (checkClear(data.action.clear_slots) || checkClear(data.action.clear_slot))) matches = true;
+                if (checkClear(data.clear_slots) || checkClear(data.clear_slot)) return 'clear';
+                if (data.action && (checkClear(data.action.clear_slots) || checkClear(data.action.clear_slot))) return 'clear';
 
                 // Check next transitions for clear_slots
                 if (data.next && Array.isArray(data.next)) {
                     if (data.next.some((rule: any) => checkClear(rule.clear_slots) || checkClear(rule.clear_slot))) {
-                        matches = true;
+                        return 'clear';
                     }
                 }
 
-                // Check for slot usage in utterances (e.g., "Hello {slot_name}")
+                // Check for slot usage in utterances (Orange)
                 const slotPattern = `{${slotName}}`;
                 if (data.utter && typeof data.utter === 'string' && data.utter.includes(slotPattern)) {
-                    matches = true;
+                    return 'utter';
                 }
                 if (data.action && data.action.utter && typeof data.action.utter === 'string' && data.action.utter.includes(slotPattern)) {
-                    matches = true;
+                    return 'utter';
                 }
-                return matches;
-            }
 
-            // Selected Slot Highlighting (Orange) - overrides Rejections
+                return null;
+            };
+
+            // Selected Slot Highlighting - overrides Rejections
             if (filters.selectedSlot) {
-                if (checkSlotMatch(filters.selectedSlot)) {
+                const usageType = getSlotUsageType(filters.selectedSlot);
+                if (usageType) {
                     isHighlighted = true;
-                    highlightColor = '#fa8c16'; // Orange
+                    if (usageType === 'set') highlightColor = '#1890ff'; // Blue for collect/sets_slot
+                    else if (usageType === 'clear') highlightColor = '#ff4d4f'; // Red for clear_slots
+                    else highlightColor = '#fa8c16'; // Orange for utter
                 }
             }
 
             // Editing Slot Highlighting (Green) - overrides everything
             if (editingSlot) {
-                if (checkSlotMatch(editingSlot)) {
+                // For editing, we just check if it matches at all, we don't distinguish types for color (always green),
+                // but we reuse the helper to check existence.
+                if (getSlotUsageType(editingSlot)) {
                     isHighlighted = true;
                     highlightColor = '#52c41a'; // Green
                 }
