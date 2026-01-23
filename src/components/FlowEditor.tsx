@@ -374,14 +374,15 @@ export const FlowEditor: React.FC = () => {
         // flowData might be { slots: {...}, steps: [...] } or just [...]
         const hasSlots = flowData && typeof flowData === 'object' && 'slots' in flowData;
         const steps = hasSlots ? (flowData as any).steps : flowData;
-        const slotsData = hasSlots ? (flowData as any).slots : undefined;
+        // slotsData removed as it is excluded from Steps export
 
-        // Flat export without root key wrapper
+        // Flat export without root key wrapper first
         const flowContent: any = {
             id: flowMetadata.id,
             name: flowMetadata.name,
             description: flowMetadata.description,
-            ...(slotsData ? { slots: slotsData } : {}),
+            // Explicitly exclude slots for Steps download
+            // ...(slotsData ? { slots: slotsData } : {}),
             steps
         };
         if (!flowContent.id) delete flowContent.id;
@@ -456,14 +457,50 @@ export const FlowEditor: React.FC = () => {
             return line;
         }).join('\n');
 
-        const blob = new Blob([quotedYaml], { type: 'text/yaml' });
+        // Wrap in custom format as requested: flow_id: `content`,
+        // Indentation: The content inside backticks should NOT be indented relative to flow_id, 
+        // but should preserve its own structure.
+
+        let finalOutput = quotedYaml;
+        if (flowMetadata.id) {
+            finalOutput = `${flowMetadata.id}:\`${quotedYaml}\`,`;
+        }
+
+        const blob = new Blob([finalOutput], { type: 'text/yaml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'workflow.yaml';
+        a.download = `${flowMetadata.id || 'workflow'}_steps.yaml`;
         document.body.appendChild(a); // Append to body
         a.click();
         document.body.removeChild(a); // Remove after click
+        URL.revokeObjectURL(url);
+    };
+
+    const onExportSlots = () => {
+        const flowData = transformFlowToYaml(nodes, edges, slots);
+        const hasSlots = flowData && typeof flowData === 'object' && 'slots' in flowData;
+        const slotsData = hasSlots ? (flowData as any).slots : undefined;
+
+        const flowContent: any = {
+            id: flowMetadata.id,
+            name: flowMetadata.name,
+            description: flowMetadata.description,
+            slots: slotsData || [],
+            // Explicitly exclude steps for Slots download
+        };
+        // Remove empty ID if not set
+        if (!flowContent.id) delete flowContent.id;
+
+        const jsonString = JSON.stringify(flowContent, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${flowMetadata.id || 'workflow'}_slots.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         URL.revokeObjectURL(url);
     };
     // Callback to update data from the panel
@@ -490,7 +527,10 @@ export const FlowEditor: React.FC = () => {
                     // Update the node
                     return nds.map((node) => {
                         if (node.id === id) {
-                            return { ...node, id: newId, data: newData };
+                            // Sync label with ID as per user feedback
+                            // "chỗ này đổi ID thì phải tự động đổi theo chứ"
+                            const finalData = { ...newData, label: newId };
+                            return { ...node, id: newId, data: finalData };
                         }
                         return node;
                     });
@@ -507,7 +547,9 @@ export const FlowEditor: React.FC = () => {
 
             // Update selected item if ID changed
             if (newData.id && newData.id !== id) {
-                setSelectedItem((prev: any) => prev ? { ...prev, id: newData.id, data: newData } : null);
+                // Important: Sync the label in the selected item state as well
+                const finalData = { ...newData, label: newData.id };
+                setSelectedItem((prev: any) => prev ? { ...prev, id: newData.id, data: finalData } : null);
             } else {
                 setSelectedItem((prev: any) => prev ? { ...prev, data: newData } : null);
             }
@@ -583,7 +625,8 @@ export const FlowEditor: React.FC = () => {
                 </div>
                 <ControlButton onClick={() => setIsFlowInfoOpen(true)}>Edit Flow Info</ControlButton>
                 <ControlButton onClick={onAddNode}>+ Add Node</ControlButton>
-                <ControlButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download YAML</ControlButton>
+                <ControlButton style={{ backgroundColor: '#1890ff' }} onClick={onExport}>Download Steps (YAML)</ControlButton>
+                <ControlButton style={{ backgroundColor: '#722ed1', marginTop: '5px' }} onClick={onExportSlots}>Download Slots (JSON)</ControlButton>
                 <FilterPanel filters={filters} onFilterChange={handleFilterChange} slots={slots} />
             </FloatingControls>
         </Layout >
